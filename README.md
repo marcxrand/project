@@ -1,4 +1,4 @@
-![Project](https://i.ibb.co/Nbk95vZ/Gemini-Generated-Image-k6flm1k6flm1k6fl.png)
+![Project](https://i.ibb.co/Wv3t0J8c/Gemini-Generated-Image-k6flm1k6flm1k6fl-min.png)
 
 
 # Project
