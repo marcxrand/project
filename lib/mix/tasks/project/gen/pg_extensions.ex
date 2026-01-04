@@ -6,17 +6,13 @@ defmodule Mix.Tasks.Project.Gen.PgExtensions do
   @impl Igniter.Mix.Task
   def igniter(igniter) do
     repo = Helpers.repo(igniter)
-    has_pgvector? = Igniter.Project.Deps.has_dep?(igniter, :pgvector)
-
-    vector_up = if has_pgvector?, do: ~s|execute "CREATE EXTENSION IF NOT EXISTS vector"\n|, else: ""
-    vector_down = if has_pgvector?, do: ~s|execute "DROP EXTENSION IF EXISTS vector"\n|, else: ""
 
     migration_body = """
     def up do
       execute "CREATE EXTENSION IF NOT EXISTS citext"
       execute "CREATE EXTENSION IF NOT EXISTS pg_trgm"
       execute "CREATE EXTENSION IF NOT EXISTS unaccent"
-      #{vector_up}
+
       execute \"""
       CREATE OR REPLACE FUNCTION public.immutable_unaccent(regdictionary, text)
         RETURNS text
@@ -36,7 +32,8 @@ defmodule Mix.Tasks.Project.Gen.PgExtensions do
       execute "DROP EXTENSION IF EXISTS citext"
       execute "DROP EXTENSION IF EXISTS pg_trgm"
       execute "DROP EXTENSION IF EXISTS unaccent"
-      #{vector_down}execute "DROP FUNCTION IF EXISTS immutable_unaccent(regdictionary, text);"
+
+      execute "DROP FUNCTION IF EXISTS immutable_unaccent(regdictionary, text);"
       execute "DROP FUNCTION IF EXISTS f_unaccent(text);"
     end
     """

@@ -48,6 +48,7 @@ defmodule Mix.Tasks.Project.Setup do
   # Values can be a single module or a list of modules.
   def optional_tasks do
     [
+      ex_sync: Mix.Tasks.Project.Add.ExSync,
       gigalixir: [
         Mix.Tasks.Project.Gen.Gigalixir,
         Mix.Tasks.Project.Gen.GigalixirLibcluster
@@ -65,6 +66,7 @@ defmodule Mix.Tasks.Project.Setup do
   def tasks do
     [
       # Remove code
+      Mix.Tasks.Project.Remove.AgentsMd,
       Mix.Tasks.Project.Remove.DaisyUI,
       Mix.Tasks.Project.Remove.LiveTitleSuffix,
       Mix.Tasks.Project.Remove.RepoCredentials,
@@ -84,7 +86,7 @@ defmodule Mix.Tasks.Project.Setup do
       Mix.Tasks.Project.Add.Bun,
       Mix.Tasks.Project.Add.Credo,
       Mix.Tasks.Project.Add.DotenvParser,
-      Mix.Tasks.Project.Add.ExSync,
+      {:optional, :ex_sync},
       Mix.Tasks.Project.Add.Libcluster,
       Mix.Tasks.Project.Add.Oban,
       Mix.Tasks.Project.Add.ObanWeb,
