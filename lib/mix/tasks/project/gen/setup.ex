@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.Setup do
+  @shortdoc "Generates a custom setup task"
+  @moduledoc "Generates a custom setup task for the project."
   use Igniter.Mix.Task
 
   @source_path Path.join(__DIR__, "../setup.ex")

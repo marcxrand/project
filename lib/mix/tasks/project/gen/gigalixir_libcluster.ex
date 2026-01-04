@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.GigalixirLibcluster do
+  @shortdoc "Generates Gigalixir Libcluster configuration"
+  @moduledoc "Generates Gigalixir Libcluster configuration."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

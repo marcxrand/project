@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.Tidewave do
+  @shortdoc "Adds Tidewave AI assistant"
+  @moduledoc "Adds `tidewave` AI assistant."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

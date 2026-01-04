@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.Oban do
+  @shortdoc "Adds Oban for background jobs"
+  @moduledoc "Adds `oban` for background job processing."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers
@@ -83,7 +85,9 @@ defmodule Mix.Tasks.Project.Add.Oban do
       if String.contains?(content, "Oban, testing:") do
         source
       else
-        config_line = "\n# Prevent Oban from running jobs and plugins during test runs\nconfig :#{app_name}, Oban, testing: :manual\n"
+        config_line =
+          "\n# Prevent Oban from running jobs and plugins during test runs\nconfig :#{app_name}, Oban, testing: :manual\n"
+
         Rewrite.Source.update(source, :content, content <> config_line)
       end
     end)

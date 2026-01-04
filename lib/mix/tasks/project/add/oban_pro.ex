@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.ObanPro do
+  @shortdoc "Adds Oban Pro extensions"
+  @moduledoc "Adds `oban_pro` for advanced background job processing features."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.AppLayout do
+  @shortdoc "Generates a clean app layout"
+  @moduledoc "Generates a clean app layout."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

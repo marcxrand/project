@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.DotenvParser do
+  @shortdoc "Adds DotenvParser for .env files"
+  @moduledoc "Adds `dotenv_parser` to load environment variables from `.env` file."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

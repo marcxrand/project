@@ -1,4 +1,6 @@
-defmodule Mix.Tasks.Project.Add.UUIDv7 do
+defmodule Mix.Tasks.Project.Add.Uuidv7 do
+  @shortdoc "Adds UUIDv7 support"
+  @moduledoc "Adds `uuidv7` for time-sortable UUIDs."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

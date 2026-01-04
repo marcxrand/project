@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.Quokka do
+  @shortdoc "Adds Quokka for database migrations"
+  @moduledoc "Adds `quokka` for simple data administration."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.Schema do
+  @shortdoc "Generates a schema helper module"
+  @moduledoc "Generates a schema helper module."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

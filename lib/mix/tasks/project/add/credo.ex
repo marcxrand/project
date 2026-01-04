@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.Credo do
+  @shortdoc "Adds Credo for code analysis"
+  @moduledoc "Adds `credo` for code analysis."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

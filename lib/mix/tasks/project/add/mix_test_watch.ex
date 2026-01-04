@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.MixTestWatch do
+  @shortdoc "Adds mix_test_watch for running tests on file changes"
+  @moduledoc "Adds `mix_test_watch` to automatically run tests on file changes."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

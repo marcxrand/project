@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Remove.ThemeToggle do
+  @shortdoc "Removes theme toggle functionality"
+  @moduledoc "Removes the theme toggle functionality."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers
@@ -31,7 +33,8 @@ defmodule Mix.Tasks.Project.Remove.ThemeToggle do
 
   defp remove_theme_scripts(content) do
     # Match script tags without crossing into other script tags, including surrounding whitespace
-    regex = ~r/\n?\s*<script(?:\s[^>]*)?>(?:(?!<script)(?!<\/script>).)*theme(?:(?!<script)(?!<\/script>).)*<\/script>\s*/si
+    regex =
+      ~r/\n?\s*<script(?:\s[^>]*)?>(?:(?!<script)(?!<\/script>).)*theme(?:(?!<script)(?!<\/script>).)*<\/script>\s*/si
 
     content
     |> String.replace(regex, "\n")

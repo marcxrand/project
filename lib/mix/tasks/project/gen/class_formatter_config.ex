@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.ClassFormatterConfig do
+  @shortdoc "Configures the class formatter"
+  @moduledoc "Configures the class formatter."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

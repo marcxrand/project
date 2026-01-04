@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.Gitignore do
+  @shortdoc "Adds items to .gitignore"
+  @moduledoc "Adds items to `.gitignore`."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

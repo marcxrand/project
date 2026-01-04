@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.ClassFormatter do
+  @shortdoc "Generates a TailwindCSS class formatter"
+  @moduledoc "Generates a TailwindCSS class formatter."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers
@@ -68,5 +70,4 @@ defmodule Mix.Tasks.Project.Gen.ClassFormatter do
 
     Igniter.create_new_file(igniter, path, content)
   end
-
 end

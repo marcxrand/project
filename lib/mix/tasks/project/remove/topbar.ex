@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Remove.Topbar do
+  @shortdoc "Removes topbar progress indicator"
+  @moduledoc "Removes the topbar progress indicator."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task
@@ -24,13 +26,13 @@ defmodule Mix.Tasks.Project.Remove.Topbar do
   defp edit_package_json(igniter) do
     if Igniter.exists?(igniter, "package.json") do
       Igniter.update_file(igniter, "package.json", fn source ->
-      source
-      |> Rewrite.Source.get(:content)
-      |> Jason.decode!()
-      |> Map.delete("topbar")
-      |> Jason.encode!(pretty: true)
-      |> then(&Rewrite.Source.update(source, :content, &1))
-    end)
+        source
+        |> Rewrite.Source.get(:content)
+        |> Jason.decode!()
+        |> Map.delete("topbar")
+        |> Jason.encode!(pretty: true)
+        |> then(&Rewrite.Source.update(source, :content, &1))
+      end)
     else
       igniter
     end

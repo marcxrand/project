@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Remove.DaisyUI do
+  @shortdoc "Removes DaisyUI components"
+  @moduledoc "Removes DaisyUI components and configuration."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

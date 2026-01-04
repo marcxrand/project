@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.GraphDb do
+  @shortdoc "Generates graph database tables"
+  @moduledoc "Generates graph database tables."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

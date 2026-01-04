@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.PgExtensions do
+  @shortdoc "Generates PostgreSQL extensions migration"
+  @moduledoc "Generates PostgreSQL extensions migration."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

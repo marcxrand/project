@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.RemixIcons do
+  @shortdoc "Adds Remix Icons"
+  @moduledoc "Adds `remix_icons` to the project."
   use Igniter.Mix.Task
 
   require Igniter.Code.Common
@@ -169,5 +171,4 @@ defmodule Mix.Tasks.Project.Add.RemixIcons do
       match?({:def, _, [{:icon, _, _} | _]}, Sourceror.Zipper.node(z))
     end)
   end
-
 end

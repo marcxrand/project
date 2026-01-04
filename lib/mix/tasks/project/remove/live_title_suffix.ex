@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Remove.LiveTitleSuffix do
+  @shortdoc "Removes live title suffix"
+  @moduledoc "Removes the live title suffix."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

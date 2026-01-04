@@ -95,7 +95,7 @@ defmodule Mix.Tasks.Project.Setup do
       Mix.Tasks.Project.Add.Quokka,
       Mix.Tasks.Project.Add.RemixIcons,
       Mix.Tasks.Project.Add.Tidewave,
-      Mix.Tasks.Project.Add.UUIDv7,
+      Mix.Tasks.Project.Add.Uuidv7,
 
       # Other optional
       {:optional, :gigalixir},

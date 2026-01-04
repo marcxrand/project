@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.ExSync do
+  @shortdoc "Adds ExSync for auto-recompilation"
+  @moduledoc "Adds `ex_sync` to reload modules on file changes."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

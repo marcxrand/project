@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.Pgvector do
+  @shortdoc "Adds pgvector support"
+  @moduledoc "Adds `pgvector` support for vector similarity search in Postgres."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

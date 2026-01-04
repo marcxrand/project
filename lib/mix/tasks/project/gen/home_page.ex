@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.HomePage do
+  @shortdoc "Generates a minimal home page"
+  @moduledoc "Generates a minimal home page."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

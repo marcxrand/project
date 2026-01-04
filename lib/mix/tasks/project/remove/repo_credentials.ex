@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Remove.RepoCredentials do
+  @shortdoc "Removes repo credentials from config"
+  @moduledoc "Removes repository credentials from configuration."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

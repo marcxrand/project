@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.RepoConfig do
+  @shortdoc "Generates repository configuration"
+  @moduledoc "Generates repository configuration."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

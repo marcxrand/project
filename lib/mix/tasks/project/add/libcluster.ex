@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.Libcluster do
+  @shortdoc "Adds libcluster for node clustering"
+  @moduledoc "Adds `libcluster` for clustering elixir nodes."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers

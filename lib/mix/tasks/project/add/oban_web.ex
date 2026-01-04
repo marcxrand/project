@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.ObanWeb do
+  @shortdoc "Adds Oban Web UI"
+  @moduledoc "Adds `oban_web` for monitoring background jobs."
   use Igniter.Mix.Task
 
   alias Mix.Tasks.Project.Helpers
@@ -44,11 +46,13 @@ defmodule Mix.Tasks.Project.Add.ObanWeb do
 
     igniter
     |> add_router_import(router)
-    |> Igniter.Libs.Phoenix.add_scope("/admin", """
-    pipe_through :browser
+    |> Igniter.Libs.Phoenix.add_scope(
+      "/admin",
+      """
+      pipe_through :browser
 
-    oban_dashboard "/oban"
-    """, router: router)
+      oban_dashboard "/oban"
+      """, router: router)
   end
 
   defp add_router_import(igniter, router) do

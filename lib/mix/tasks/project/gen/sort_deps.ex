@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.SortDeps do
+  @shortdoc "Sorts dependencies in mix.exs"
+  @moduledoc "Sorts dependencies in `mix.exs`."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

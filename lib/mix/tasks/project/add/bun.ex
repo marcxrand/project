@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Add.Bun do
+  @shortdoc "Replaces esbuild and tailwind with Bun"
+  @moduledoc "Replaces `esbuild` and `tailwind` with `Bun`."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task

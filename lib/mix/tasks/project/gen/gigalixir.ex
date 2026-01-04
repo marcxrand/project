@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Project.Gen.Gigalixir do
+  @shortdoc "Generates Gigalixir deployment configuration"
+  @moduledoc "Generates Gigalixir deployment configuration."
   use Igniter.Mix.Task
 
   @erlang_default "28.3"
