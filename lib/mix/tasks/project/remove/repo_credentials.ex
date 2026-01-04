@@ -11,5 +11,7 @@ defmodule Mix.Tasks.Project.Remove.RepoCredentials do
     igniter
     |> Helpers.remove_config_key("dev.exs", app_name, repo, :username)
     |> Helpers.remove_config_key("dev.exs", app_name, repo, :password)
+    |> Helpers.remove_config_key("test.exs", app_name, repo, :username)
+    |> Helpers.remove_config_key("test.exs", app_name, repo, :password)
   end
 end
