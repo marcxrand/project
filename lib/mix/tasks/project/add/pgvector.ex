@@ -27,7 +27,8 @@ defmodule Mix.Tasks.Project.Add.Pgvector do
     igniter = Igniter.include_glob(igniter, Path.join(migrations_path, "*_add_extensions.exs"))
 
     migration_path =
-      igniter.rewrite.sources
+      igniter.rewrite
+      |> Rewrite.sources()
       |> Enum.map(& &1.path)
       |> Enum.find(
         &String.match?(&1, ~r/priv\/#{repo_name}\/migrations\/\d+_add_extensions\.exs/)

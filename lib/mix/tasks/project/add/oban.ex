@@ -37,7 +37,14 @@ defmodule Mix.Tasks.Project.Add.Oban do
     pattern = "opts = [strategy: :one_for_one, name: #{app_module}.Supervisor]"
 
     code = """
-    Oban.Telemetry.attach_default_logger()
+    events =
+      if Mix.env() == :dev do
+        [:job]
+      else
+        [:job, :notifier, :peer, :plugin, :queue, :stager]
+      end
+
+    Oban.Telemetry.attach_default_logger(events: events)
     """
 
     Igniter.Project.Module.find_and_update_module!(igniter, app_supervisor, fn zipper ->

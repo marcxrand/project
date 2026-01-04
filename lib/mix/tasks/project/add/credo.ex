@@ -9,6 +9,6 @@ defmodule Mix.Tasks.Project.Add.Credo do
 
     igniter
     |> Igniter.Project.Deps.add_dep({package, version, only: [:dev, :test], runtime: false})
-    |> Igniter.add_notice("Run `mix credo` to analyze your code")
+    |> Igniter.add_notice("Run `mix credo gen.config` to generate a custom configuration file")
   end
 end

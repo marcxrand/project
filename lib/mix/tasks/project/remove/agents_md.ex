@@ -1,10 +1,14 @@
 defmodule Mix.Tasks.Project.Remove.AgentsMd do
-  @shortdoc "Removes the agent.md file"
-  @moduledoc "Removes the `agent.md` file."
+  @shortdoc "Removes the AGENTS.md file"
+  @moduledoc "Removes the `AGENTS.md` file."
   use Igniter.Mix.Task
 
   @impl Igniter.Mix.Task
   def igniter(igniter) do
-    Igniter.rm(igniter, "agent.md")
+    if Igniter.exists?(igniter, "AGENTS.md") do
+      Igniter.rm(igniter, "AGENTS.md")
+    else
+      igniter
+    end
   end
 end
