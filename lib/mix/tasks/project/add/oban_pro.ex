@@ -17,9 +17,10 @@ defmodule Mix.Tasks.Project.Add.ObanPro do
   end
 
   defp ensure_oban(igniter) do
-    case Igniter.Project.Deps.get_dep(igniter, :oban) do
-      {:ok, _} -> igniter
-      :error -> Igniter.compose_task(igniter, Mix.Tasks.Project.Add.Oban)
+    if Igniter.Project.Deps.has_dep?(igniter, :oban) do
+      igniter
+    else
+      Igniter.compose_task(igniter, Mix.Tasks.Project.Add.Oban)
     end
   end
 

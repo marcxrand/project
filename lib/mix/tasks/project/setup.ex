@@ -26,6 +26,7 @@ defmodule Mix.Tasks.Project.Setup do
     |> Enum.reduce(igniter, fn module, acc ->
       Igniter.compose_task(acc, module)
     end)
+    |> Igniter.add_task("deps.clean --unused")
   end
 
   defp expand_optional_tasks(tasks, opts) do
@@ -55,7 +56,8 @@ defmodule Mix.Tasks.Project.Setup do
       ],
       graph_db: Mix.Tasks.Project.Gen.GraphDb,
       mix_test_watch: Mix.Tasks.Project.Add.MixTestWatch,
-      oban_pro: Mix.Tasks.Project.Add.ObanPro
+      oban_pro: Mix.Tasks.Project.Add.ObanPro,
+      pgvector: Mix.Tasks.Project.Add.Pgvector
     ]
   end
 
@@ -91,7 +93,7 @@ defmodule Mix.Tasks.Project.Setup do
       Mix.Tasks.Project.Add.Oban,
       Mix.Tasks.Project.Add.ObanWeb,
       {:optional, :oban_pro},
-      Mix.Tasks.Project.Add.Pgvector,
+      {:optional, :pgvector},
       Mix.Tasks.Project.Add.Quokka,
       Mix.Tasks.Project.Add.RemixIcons,
       Mix.Tasks.Project.Add.Tidewave,
