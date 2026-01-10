@@ -174,16 +174,8 @@ defmodule Mix.Tasks.Project.Add.Bun do
          ]
        )}
     )
-  end
-
-  defp edit_config_dev(igniter) do
-    app_name = Igniter.Project.Application.app_name(igniter)
-    app_web_name = Mix.Tasks.Project.Helpers.app_web_module(igniter)
-    endpoint = Module.concat([app_web_name, "Endpoint"])
-
-    igniter
     |> Igniter.Project.Config.configure(
-      "dev.exs",
+      "config.exs",
       :phoenix_live_view,
       [:colocated_js],
       {:code,
@@ -193,6 +185,14 @@ defmodule Mix.Tasks.Project.Add.Bun do
          ]
        )}
     )
+  end
+
+  defp edit_config_dev(igniter) do
+    app_name = Igniter.Project.Application.app_name(igniter)
+    app_web_name = Mix.Tasks.Project.Helpers.app_web_module(igniter)
+    endpoint = Module.concat([app_web_name, "Endpoint"])
+
+    igniter
     |> Igniter.Project.Config.configure(
       "dev.exs",
       app_name,

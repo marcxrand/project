@@ -108,7 +108,8 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
       create index(:nodes, [:data], using: :gin)
       create index(:nodes, [:type])
 
-      execute "CREATE INDEX nodes_name_trgm ON nodes USING GIN ((data->>'name') gin_trgm_ops)"
+      execute("CREATE INDEX nodes_name_trgm ON nodes USING GIN ((data->>'name') gin_trgm_ops)",
+      "DROP INDEX nodes_name_trgm")
 
       create unique_index(:nodes, ["(data->>'slug')"],
               where: "type = 'member' AND deleted_at IS NULL",
@@ -129,7 +130,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
       create unique_index(:embeddings, [:node_id, :model])
 
-      execute "CREATE INDEX embeddings_vector_idx ON embeddings USING hnsw (vector vector_cosine_ops)"
+      execute("CREATE INDEX embeddings_vector_idx ON embeddings USING hnsw (vector vector_cosine_ops)", "DROP INDEX embeddings_vector_idx")
      end
     """
 
