@@ -3,6 +3,8 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
   @moduledoc "Generates Gigalixir deployment configuration."
   use Igniter.Mix.Task
 
+  alias Mix.Tasks.Project.Helpers
+
   @erlang_default "28.3"
   @elixir_default "1.19.4"
 
@@ -136,31 +138,17 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
 
   defp configure_repo_ssl(igniter) do
     app_name = Igniter.Project.Application.app_name(igniter)
-    repo_module = Igniter.Project.Module.module_name(igniter, "Repo")
+    repo = Helpers.repo(igniter)
+    ssl_opts = {:code, "[verify: :verify_none, cacerts: :public_key.cacerts_get()]"}
 
-    cacerts_call = Sourceror.parse_string!(":public_key.cacerts_get()")
-    ssl_config = [verify: :verify_none, cacerts: cacerts_call]
-
-    Igniter.Project.Config.configure_runtime_env(
-      igniter,
-      :prod,
-      app_name,
-      [repo_module, :ssl],
-      ssl_config
-    )
+    Igniter.Project.Config.configure_runtime_env(igniter, :prod, app_name, [repo, :ssl], ssl_opts)
   end
 
   defp configure_endpoint_server(igniter) do
     app_name = Igniter.Project.Application.app_name(igniter)
-    endpoint_module = Igniter.Project.Module.module_name(igniter, "Web.Endpoint")
+    endpoint = Module.concat([Helpers.app_web_module(igniter), "Endpoint"])
 
-    Igniter.Project.Config.configure_runtime_env(
-      igniter,
-      :prod,
-      app_name,
-      [endpoint_module, :server],
-      true
-    )
+    Igniter.Project.Config.configure_runtime_env(igniter, :prod, app_name, [endpoint, :server], true)
   end
 
   defp edit_package_json(igniter) do
