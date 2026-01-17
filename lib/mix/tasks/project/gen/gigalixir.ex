@@ -5,7 +5,6 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
 
   @erlang_default "28.3"
   @elixir_default "1.19.4"
-  @nodejs_default "25.2.0"
 
   @impl Igniter.Mix.Task
   def igniter(igniter) do
@@ -14,17 +13,20 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
     |> add_buildpacks_file()
     |> add_build_assets_script()
     |> add_procfile()
+    |> add_scripts_module()
     |> configure_repo_ssl()
     |> configure_endpoint_server()
     |> edit_package_json()
     |> remove_colocated_hooks()
     |> Igniter.add_notice("Run: gigalixir config:set OBAN_PRO_AUTH_KEY=<your-key>")
+    |> Igniter.add_notice(
+      "Run: gigalixir create -n \"your-app-name\" && gigalixir pg:create --free && git push gigalixir"
+    )
   end
 
   defp add_elixir_buildpack(igniter) do
     erlang = fetch_latest_erlang() || @erlang_default
     elixir = fetch_latest_elixir() || @elixir_default
-    # nodejs = fetch_latest_nodejs() || @nodejs_default
 
     content = """
     erlang_version=#{erlang}
@@ -89,20 +91,55 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
   end
 
   defp add_procfile(igniter) do
-    app_module = Igniter.Project.Module.module_name(igniter)
+    scripts_module = Igniter.Project.Module.module_name(igniter, "Scripts")
 
     content = """
-    web: /app/bin/$GIGALIXIR_APP_NAME eval '#{app_module}.Release.migrate' && /app/bin/$GIGALIXIR_APP_NAME $GIGALIXIR_COMMAND
+    web: /app/bin/$GIGALIXIR_APP_NAME eval '#{scripts_module}.migrate' && /app/bin/$GIGALIXIR_APP_NAME $GIGALIXIR_COMMAND
     """
 
     Igniter.create_new_file(igniter, "rel/overlays/Procfile", content)
+  end
+
+  defp add_scripts_module(igniter) do
+    app_name = Igniter.Project.Application.app_name(igniter)
+    scripts_module = Igniter.Project.Module.module_name(igniter, "Scripts")
+
+    content = """
+    defmodule #{scripts_module} do
+      def migrate do
+        load_app()
+
+        for repo <- repos() do
+          {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
+        end
+      end
+
+      def rollback(repo, version) do
+        load_app()
+        {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))
+      end
+
+      defp repos do
+        Application.fetch_env!(:#{app_name}, :ecto_repos)
+      end
+
+      defp load_app do
+        # Many platforms require SSL when connecting to the database
+        Application.ensure_all_started(:ssl)
+        Application.ensure_loaded(:#{app_name})
+      end
+    end
+    """
+
+    Igniter.create_new_file(igniter, "lib/#{app_name}/scripts.ex", content)
   end
 
   defp configure_repo_ssl(igniter) do
     app_name = Igniter.Project.Application.app_name(igniter)
     repo_module = Igniter.Project.Module.module_name(igniter, "Repo")
 
-    ssl_config = [verify: :verify_peer, cacerts: {:public_key, :cacerts_get, []}]
+    cacerts_call = Sourceror.parse_string!(":public_key.cacerts_get()")
+    ssl_config = [verify: :verify_none, cacerts: cacerts_call]
 
     Igniter.Project.Config.configure_runtime_env(
       igniter,
@@ -189,13 +226,6 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
 
   defp fetch_latest_elixir do
     case fetch_github_tag("elixir-lang", "elixir") do
-      "v" <> version -> version
-      _ -> nil
-    end
-  end
-
-  defp fetch_latest_nodejs do
-    case fetch_github_tag("nodejs", "node") do
       "v" <> version -> version
       _ -> nil
     end
