@@ -15,7 +15,7 @@ Add `project` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:project, "~> 1.0"}
+    {:project, "~> 1.0", only: :dev}
   ]
 end
 ```

@@ -13,6 +13,9 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
     |> add_elixir_buildpack()
     |> add_buildpacks_file()
     |> add_build_assets_script()
+    |> add_procfile()
+    |> configure_repo_ssl()
+    |> configure_endpoint_server()
     |> edit_package_json()
     |> remove_colocated_hooks()
     |> Igniter.add_notice("Run: gigalixir config:set OBAN_PRO_AUTH_KEY=<your-key>")
@@ -33,7 +36,7 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
       --auth-key ${OBAN_PRO_AUTH_KEY}"
 
     # Run custom asset build after compilation (uses Bun via mix tasks)
-    hook_post_compile="bin/build_assets"
+    hook_post_compile="./build_assets"
 
     """
 
@@ -80,7 +83,47 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
     echo "-----> Assets built successfully!"
     """
 
-    Igniter.create_new_file(igniter, "bin/build_assets", content)
+    igniter
+    |> Igniter.create_new_file("build_assets", content)
+    |> Igniter.add_notice("Run: chmod +x ./build_assets")
+  end
+
+  defp add_procfile(igniter) do
+    app_module = Igniter.Project.Module.module_name(igniter)
+
+    content = """
+    web: /app/bin/$GIGALIXIR_APP_NAME eval '#{app_module}.Release.migrate' && /app/bin/$GIGALIXIR_APP_NAME $GIGALIXIR_COMMAND
+    """
+
+    Igniter.create_new_file(igniter, "rel/overlays/Procfile", content)
+  end
+
+  defp configure_repo_ssl(igniter) do
+    app_name = Igniter.Project.Application.app_name(igniter)
+    repo_module = Igniter.Project.Module.module_name(igniter, "Repo")
+
+    ssl_config = [verify: :verify_peer, cacerts: {:public_key, :cacerts_get, []}]
+
+    Igniter.Project.Config.configure_runtime_env(
+      igniter,
+      :prod,
+      app_name,
+      [repo_module, :ssl],
+      ssl_config
+    )
+  end
+
+  defp configure_endpoint_server(igniter) do
+    app_name = Igniter.Project.Application.app_name(igniter)
+    endpoint_module = Igniter.Project.Module.module_name(igniter, "Web.Endpoint")
+
+    Igniter.Project.Config.configure_runtime_env(
+      igniter,
+      :prod,
+      app_name,
+      [endpoint_module, :server],
+      true
+    )
   end
 
   defp edit_package_json(igniter) do
@@ -114,6 +157,7 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
 
   defp remove_colocated_hooks(igniter) do
     app_js_path = "assets/js/app.js"
+    app_name = Igniter.Project.Application.app_name(igniter)
 
     if Igniter.exists?(igniter, app_js_path) do
       Igniter.update_file(igniter, app_js_path, fn source ->
@@ -123,13 +167,11 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
           content
           # Remove the colocated hooks import line
           |> String.replace(
-            ~r/import \{ hooks as colocatedHooks \} from "phoenix-colocated\/uptown"\n/,
+            ~r/import \{hooks as colocatedHooks\} from "phoenix-colocated\/#{app_name}"\n/,
             ""
           )
-          # Remove hooks option from LiveSocket (handles trailing comma case)
-          |> String.replace(~r/,\n\s*hooks: \{ \.\.\.colocatedHooks \}/, "")
-          # Remove hooks option from LiveSocket (handles leading comma case)
-          |> String.replace(~r/hooks: \{ \.\.\.colocatedHooks \},?\s*\n?/, "")
+          # Remove hooks option from LiveSocket
+          |> String.replace(~r/\s*hooks: \{\.\.\.colocatedHooks\},?\n/, "")
 
         Rewrite.Source.update(source, :content, updated)
       end)
