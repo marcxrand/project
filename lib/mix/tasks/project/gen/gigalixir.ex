@@ -139,7 +139,7 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
   defp configure_repo_ssl(igniter) do
     app_name = Igniter.Project.Application.app_name(igniter)
     repo = Helpers.repo(igniter)
-    ssl_opts = {:code, "[verify: :verify_none, cacerts: :public_key.cacerts_get()]"}
+    ssl_opts = {:code, quote(do: [verify: :verify_none, cacerts: :public_key.cacerts_get()])}
 
     Igniter.Project.Config.configure_runtime_env(igniter, :prod, app_name, [repo, :ssl], ssl_opts)
   end
