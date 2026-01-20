@@ -21,7 +21,8 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     |> add_node_schema()
     |> add_edge_schema()
     |> add_embedding_schema()
-    |> add_schemas_node()
+    |> add_node_type_behaviour()
+    |> add_member_node_type()
     |> Igniter.add_task("ecto.reset")
   end
 
@@ -117,9 +118,9 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
       create unique_index(:edges, [:from_id, :to_id, :name])
       create unique_index(:embeddings, [:node_id, :model])
 
-      create unique_index(:nodes, ["(data->>'slug')"],
+      create unique_index(:nodes, ["(data->>'email')"],
               where: "type = 'member' AND deleted_at IS NULL",
-              name: :nodes_member_slug_idx)
+              name: :nodes_member_email_idx)
 
       execute(
         "CREATE INDEX nodes_name_trgm ON nodes USING GIN ((data->>'name') gin_trgm_ops)",
@@ -227,51 +228,114 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     Igniter.create_new_file(igniter, "lib/#{app_name}/ecto/atom_map.ex", content)
   end
 
+  defp add_node_type_behaviour(igniter) do
+    app_name = Igniter.Project.Application.app_name(igniter)
+    app_module = Helpers.app_module(igniter)
+
+    content = ~s'''
+    defmodule #{app_module}.Graph.NodeType do
+      @moduledoc """
+      Behaviour for defining node types in the graph.
+
+      Each node type implements this behaviour to define:
+      - Its type name (stored in the `type` column)
+      - A changeset for validating the `data` field
+      - The conflict target for upsert operations
+
+      ## Using the Macro
+
+          defmodule #{app_module}.Graph.NodeType.Publication do
+            use #{app_module}.Graph.NodeType, conflict_field: :host
+
+            embedded_schema do
+              field :host, :string
+              field :name, :string
+            end
+
+            @impl true
+            def changeset(data) do
+              %__MODULE__{}
+              |> cast(data, [:host, :name])
+              |> validate_required([:host])
+            end
+          end
+
+      ## Options
+
+        * `:type` - The type name string. Defaults to the lowercase last segment
+          of the module name (e.g., `NodeType.Publication` → `"publication"`).
+        * `:conflict_field` - Required. The field used for upsert conflict detection.
+      """
+
+      @doc """
+      Returns the type name stored in the `type` column.
+      """
+      @callback type_name() :: String.t()
+
+      @doc """
+      Returns the SQL fragment for the conflict target used in upserts.
+      Should match the unique index for this type.
+      """
+      @callback conflict_target() :: String.t()
+
+      @doc """
+      Returns a changeset for validating the node's data.
+      The changeset is used to validate the `data` field before insertion.
+      """
+      @callback changeset(data :: map()) :: Ecto.Changeset.t()
+
+      defmacro __using__(opts) do
+        conflict_field = Keyword.fetch!(opts, :conflict_field)
+
+        quote do
+          @behaviour unquote(__MODULE__)
+
+          use Ecto.Schema
+          import Ecto.Changeset
+
+          @primary_key false
+
+          @impl true
+          def type_name do
+            unquote(opts[:type]) || __MODULE__ |> Module.split() |> List.last() |> String.downcase()
+          end
+
+          @impl true
+          def conflict_target do
+            "((data->>'#\{unquote(conflict_field)}')) WHERE type = '#\{type_name()}'"
+          end
+
+          defoverridable type_name: 0, conflict_target: 0
+        end
+      end
+    end
+    '''
+
+    Igniter.create_new_file(igniter, "lib/#{app_name}/graph/node_type.ex", content)
+  end
+
   defp add_node_schema(igniter) do
     app_name = Igniter.Project.Application.app_name(igniter)
     app_module = Helpers.app_module(igniter)
 
     content = ~s'''
     defmodule #{app_module}.Graph.Node do
-      @moduledoc """
-      Ecto schema for graph nodes - the primary entity in the knowledge graph.
-
-      ## Overview
-
-      Nodes represent entities in the graph. Each node has a `type` field and a `data`
-      JSONB field containing type-specific attributes.
-
-      ## Soft Deletion
-
-      Nodes support soft deletion via `deleted_at`. Query with `include_deleted: true`
-      option to include deleted nodes.
-
-      ## Relationships
-
-      - `outgoing_edges` - Edges where this node is the source (`from_id`)
-      - `incoming_edges` - Edges where this node is the target (`to_id`)
-      - `embeddings` - Vector embeddings for semantic search
-
-      ## Accessing Data
-
-          #{app_module}.Graph.Node.name(node)  # => "Example Name"
-          #{app_module}.Graph.Node.slug(node)  # => "example-name"
-      """
-
       use #{app_module}.Schema
-
-      alias #{app_module}.Schemas
 
       schema "nodes" do
         field :type, :string
         field :data, #{app_module}.Ecto.AtomMap
         field :deleted_at, :utc_datetime_usec
 
-        has_many :outgoing_edges, #{app_module}.Graph.Edge, foreign_key: :from_id
-        has_many :incoming_edges, #{app_module}.Graph.Edge, foreign_key: :to_id
-        has_many :embeddings, #{app_module}.Graph.Embedding
-
         timestamps()
+      end
+
+      def changeset(node, attrs, type_module) do
+        node
+        |> Ecto.Changeset.cast(attrs, [:type, :data])
+        |> Ecto.Changeset.validate_required([:type, :data])
+        |> validate_data(type_module)
+        |> put_unique_constraint(type_module)
       end
 
       def changeset(node, attrs) do
@@ -282,39 +346,36 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
         |> validate_node_data()
       end
 
-      defp validate_node_data(changeset) do
-        type = get_field(changeset, :type)
-        data = get_field(changeset, :data)
-
-        if type && data do
-          case #{app_module}.Schemas.Node.validate(type, data) do
-            {:ok, _validated} ->
-              changeset
-
-            {:error, errors} when is_list(errors) ->
-              Enum.reduce(errors, changeset, fn error, cs ->
-                add_error(cs, :data, error)
-              end)
-
-            {:error, error} ->
-              add_error(changeset, :data, error)
-          end
-        else
-          changeset
+      defp put_unique_constraint(changeset, type_module) do
+        case type_module.type_name() do
+          "member" -> Ecto.Changeset.unique_constraint(changeset, :data, name: :nodes_member_email_idx)
+          _ -> changeset
         end
       end
 
-      @doc "Returns the name from the node's data field"
-      def name(%__MODULE__{data: %{"name" => name}}), do: name
-      def name(_), do: nil
+      defp validate_data(changeset, type_module) do
+        case Ecto.Changeset.get_field(changeset, :data) do
+          nil ->
+            changeset
 
-      @doc "Returns the slug from the node's data field"
-      def slug(%__MODULE__{data: %{"slug" => slug}}), do: slug
-      def slug(_), do: nil
+          data ->
+            data_changeset = type_module.changeset(data)
 
-      @doc "Returns true if the node has been soft-deleted"
-      def deleted?(%__MODULE__{deleted_at: nil}), do: false
-      def deleted?(%__MODULE__{deleted_at: _}), do: true
+            if data_changeset.valid? do
+              validated_data =
+                data_changeset
+                |> Ecto.Changeset.apply_changes()
+                |> Map.from_struct()
+                |> Map.reject(fn {_k, v} -> is_nil(v) end)
+
+              Ecto.Changeset.put_change(changeset, :data, validated_data)
+            else
+              Enum.reduce(data_changeset.errors, changeset, fn {field, {msg, opts}}, cs ->
+                Ecto.Changeset.add_error(cs, :"data.\#{field}", msg, opts)
+              end)
+            end
+        end
+      end
     end
     '''
 
@@ -454,106 +515,30 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     Igniter.create_new_file(igniter, "lib/#{app_name}/graph/embedding.ex", content)
   end
 
-  defp add_schemas_node(igniter) do
+  defp add_member_node_type(igniter) do
     app_name = Igniter.Project.Application.app_name(igniter)
     app_module = Helpers.app_module(igniter)
 
     content = ~s'''
-    defmodule #{app_module}.Schemas.Node do
-      @moduledoc """
-      Node data validation and type-specific schemas.
+    defmodule #{app_module}.Graph.NodeType.Member do
+      use #{app_module}.Graph.NodeType, conflict_field: :email
 
-      ## Overview
-
-      This module contains embedded schemas for each node type and validates
-      the `data` field based on the node's `type`.
-
-      ## Adding New Node Types
-
-      1. Add a nested schema module (e.g., `defmodule PersonData do ... end`)
-      2. Add an entry to `@types` mapping the type string to the schema module
-
-      ## Usage
-
-          #{app_module}.Schemas.Node.validate("member", %{"name" => "Jane", "slug" => "jane"})
-          # => {:ok, %#{app_module}.Schemas.Node.MemberData{name: "Jane", slug: "jane"}}
-
-          #{app_module}.Schemas.Node.validate("member", %{})
-          # => {:error, ["name can't be blank", "slug can't be blank"]}
-      """
-
-      import Ecto.Changeset
-
-      # ------------------------------------------------------------------
-      # Type-specific schemas
-      # ------------------------------------------------------------------
-
-      defmodule MemberData do
-        @moduledoc "Embedded schema for member node data."
-        use Ecto.Schema
-        import Ecto.Changeset
-
-        @primary_key false
-        embedded_schema do
-          field :name, :string
-          field :slug, :string
-          field :email, :string
-          field :description, :string
-        end
-
-        def changeset(schema, attrs) do
-          schema
-          |> cast(attrs, [:name, :slug, :email, :description])
-          |> validate_required([:name, :slug])
-          |> validate_format(:slug, ~r/^[a-z0-9]+(?:-[a-z0-9]+)*$/, message: "must be lowercase with hyphens")
-          |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must be a valid email")
-        end
+      embedded_schema do
+        field :email, :string
+        field :signed_in_at, :utc_datetime
+        field :signed_in_count, :integer, default: 0
       end
 
-      # ------------------------------------------------------------------
-      # Type registry
-      # ------------------------------------------------------------------
-
-      @types %{
-        "member" => MemberData
-      }
-
-      @doc "Returns list of valid node type strings"
-      def type_values, do: Map.keys(@types)
-
-      @doc "Returns the schema module for a given type"
-      def schema_for(type), do: Map.get(@types, type)
-
-      # ------------------------------------------------------------------
-      # Validation
-      # ------------------------------------------------------------------
-
-      @doc "Validates data for the given node type"
-      def validate(type, data) do
-        case schema_for(type) do
-          nil ->
-            {:error, "unknown node type: \#{type}"}
-
-          schema_module ->
-            struct(schema_module)
-            |> schema_module.changeset(data)
-            |> validate_changeset()
-        end
-      end
-
-      defp validate_changeset(%{valid?: true} = changeset) do
-        {:ok, Ecto.Changeset.apply_changes(changeset)}
-      end
-
-      defp validate_changeset(%{errors: errors}) do
-        messages = Enum.map(errors, fn {field, {msg, _opts}} ->
-          "\#{field} \#{msg}"
-        end)
-        {:error, messages}
+      @impl true
+      def changeset(data) do
+        %__MODULE__{}
+        |> cast(data, [:email, :signed_in_at, :signed_in_count])
+        |> validate_required([:email])
+        |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/)
       end
     end
     '''
 
-    Igniter.create_new_file(igniter, "lib/#{app_name}/schemas/node.ex", content)
+    Igniter.create_new_file(igniter, "lib/#{app_name}/graph/node_type/member.ex", content)
   end
 end
