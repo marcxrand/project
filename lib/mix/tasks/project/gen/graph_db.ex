@@ -17,6 +17,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     |> add_embeddings_migration(repo)
     |> add_indexes_migration(repo)
     |> add_views_migration(repo)
+    |> add_atom_map_type()
     |> add_node_schema()
     |> add_edge_schema()
     |> add_embedding_schema()
@@ -53,11 +54,11 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     def change do
       create table(:nodes, primary_key: false) do
         add :id, :binary_id, primary_key: true
+        add :data, :map, null: false
         add :type, :string, null: false
-        add :data, :map, default: %{}, null: false
-        add :deleted_at, :utc_datetime_usec
 
         timestamps(type: :utc_datetime_usec)
+        add :deleted_at, :utc_datetime_usec
       end
     end
     """
@@ -71,10 +72,9 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
       create table(:edges, primary_key: false) do
         add :id, :binary_id, primary_key: true
         add :name, :string, null: false
-        add :weight, :float, default: 1.0, null: false
+        add :data, :map, null: false
         add :from_id, references(:nodes, type: :binary_id), null: false
         add :to_id, references(:nodes, type: :binary_id), null: false
-        add :data, :map, default: %{}, null: false
 
         timestamps(type: :utc_datetime_usec)
       end
@@ -89,10 +89,11 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     def change do
       create table(:embeddings, primary_key: false) do
         add :id, :binary_id, primary_key: true
-        add :node_id, references(:nodes, type: :binary_id), null: false
+        add :type, :string, null: false
+        add :text, :text, null: false
         add :vector, :vector, size: 1536, null: false
         add :model, :string, null: false
-        add :text, :text, null: false
+        add :node_id, references(:nodes, type: :binary_id), null: false
 
         timestamps(type: :utc_datetime_usec)
       end
@@ -107,30 +108,28 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     def change do
       create index(:nodes, [:data], using: :gin)
       create index(:nodes, [:type])
-
-      execute("CREATE INDEX nodes_name_trgm ON nodes USING GIN ((data->>'name') gin_trgm_ops)",
-      "DROP INDEX nodes_name_trgm")
-
-      create unique_index(:nodes, ["(data->>'slug')"],
-              where: "type = 'member' AND deleted_at IS NULL",
-              name: :nodes_member_slug_unique)
-
       create index(:edges, [:data], using: :gin)
       create index(:edges, [:from_id])
       create index(:edges, [:to_id])
       create index(:edges, [:name])
-
       create index(:edges, [:from_id, :name])
       create index(:edges, [:to_id, :name])
-
-      create index(:edges, [:from_id, :name, :to_id, :weight], name: :edges_outbound)
-      create index(:edges, [:to_id, :name, :from_id, :weight], name: :edges_inbound)
-
-      create unique_index(:edges, [:from_id, :to_id, :name], name: :edges_unique)
-
+      create unique_index(:edges, [:from_id, :to_id, :name])
       create unique_index(:embeddings, [:node_id, :model])
 
-      execute("CREATE INDEX embeddings_vector_idx ON embeddings USING hnsw (vector vector_cosine_ops)", "DROP INDEX embeddings_vector_idx")
+      create unique_index(:nodes, ["(data->>'slug')"],
+              where: "type = 'member' AND deleted_at IS NULL",
+              name: :nodes_member_slug_idx)
+
+      execute(
+        "CREATE INDEX nodes_name_trgm ON nodes USING GIN ((data->>'name') gin_trgm_ops)",
+        "DROP INDEX nodes_name_trgm"
+      )
+
+      execute(
+        "CREATE INDEX embeddings_vector_idx ON embeddings USING hnsw (vector vector_cosine_ops)",
+        "DROP INDEX embeddings_vector_idx"
+      )
      end
     """
 
@@ -149,6 +148,83 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     """
 
     Mix.Tasks.Project.Helpers.gen_migration(igniter, repo, "add_views", body: migration_body)
+  end
+
+  defp add_atom_map_type(igniter) do
+    app_module = Helpers.app_module(igniter)
+    app_name = Igniter.Project.Application.app_name(igniter)
+
+    content = ~s'''
+    defmodule #{app_module}.Ecto.AtomMap do
+      @moduledoc """
+      Custom Ecto type that stores maps as JSON but loads them with atom keys.
+
+      This ensures consistent atom key access throughout application code,
+      regardless of whether data was just inserted or loaded from the database.
+
+      ## Usage
+
+          schema "nodes" do
+            field :data, #{app_module}.Ecto.AtomMap
+          end
+
+      Then access with atom keys: `node.data[:name]` or `node.data.name`
+      """
+
+      use Ecto.Type
+
+      @impl true
+      def type, do: :map
+
+      @impl true
+      def cast(data) when is_map(data) do
+        {:ok, atomize_keys(data)}
+      end
+
+      def cast(_), do: :error
+
+      @impl true
+      def load(nil), do: {:ok, nil}
+
+      def load(data) when is_map(data) do
+        {:ok, atomize_keys(data)}
+      end
+
+      @impl true
+      def dump(nil), do: {:ok, nil}
+
+      def dump(data) when is_map(data) do
+        {:ok, stringify_keys(data)}
+      end
+
+      def dump(_), do: :error
+
+      defp atomize_keys(map) when is_map(map) do
+        Map.new(map, fn {k, v} -> {to_atom(k), atomize_keys(v)} end)
+      end
+
+      defp atomize_keys(list) when is_list(list) do
+        Enum.map(list, &atomize_keys/1)
+      end
+
+      defp atomize_keys(value), do: value
+
+      defp to_atom(key) when is_atom(key), do: key
+      defp to_atom(key) when is_binary(key), do: String.to_atom(key)
+
+      defp stringify_keys(map) when is_map(map) do
+        Map.new(map, fn {k, v} -> {to_string(k), stringify_keys(v)} end)
+      end
+
+      defp stringify_keys(list) when is_list(list) do
+        Enum.map(list, &stringify_keys/1)
+      end
+
+      defp stringify_keys(value), do: value
+    end
+    '''
+
+    Igniter.create_new_file(igniter, "lib/#{app_name}/ecto/atom_map.ex", content)
   end
 
   defp add_node_schema(igniter) do
@@ -188,7 +264,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
       schema "nodes" do
         field :type, :string
-        field :data, :map
+        field :data, #{app_module}.Ecto.AtomMap
         field :deleted_at, :utc_datetime_usec
 
         has_many :outgoing_edges, #{app_module}.Graph.Edge, foreign_key: :from_id
