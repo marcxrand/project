@@ -193,35 +193,21 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
       @impl true
       def dump(nil), do: {:ok, nil}
-
-      def dump(data) when is_map(data) do
-        {:ok, stringify_keys(data)}
-      end
-
+      def dump(data) when is_map(data), do: {:ok, data}
       def dump(_), do: :error
+
+      # Structs (like DateTime) should pass through unchanged
+      defp atomize_keys(%_{} = struct), do: struct
 
       defp atomize_keys(map) when is_map(map) do
         Map.new(map, fn {k, v} -> {to_atom(k), atomize_keys(v)} end)
       end
 
-      defp atomize_keys(list) when is_list(list) do
-        Enum.map(list, &atomize_keys/1)
-      end
-
+      defp atomize_keys(list) when is_list(list), do: Enum.map(list, &atomize_keys/1)
       defp atomize_keys(value), do: value
 
       defp to_atom(key) when is_atom(key), do: key
       defp to_atom(key) when is_binary(key), do: String.to_atom(key)
-
-      defp stringify_keys(map) when is_map(map) do
-        Map.new(map, fn {k, v} -> {to_string(k), stringify_keys(v)} end)
-      end
-
-      defp stringify_keys(list) when is_list(list) do
-        Enum.map(list, &stringify_keys/1)
-      end
-
-      defp stringify_keys(value), do: value
     end
     '''
 
@@ -332,18 +318,10 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
       def changeset(node, attrs, type_module) do
         node
-        |> Ecto.Changeset.cast(attrs, [:type, :data])
+        |> Ecto.Changeset.cast(attrs, [:type, :data, :deleted_at])
         |> Ecto.Changeset.validate_required([:type, :data])
         |> validate_data(type_module)
         |> put_unique_constraint(type_module)
-      end
-
-      def changeset(node, attrs) do
-        node
-        |> cast(attrs, [:type, :data, :deleted_at])
-        |> validate_required([:type, :data])
-        |> validate_inclusion(:type, Schemas.Node.type_values())
-        |> validate_node_data()
       end
 
       defp put_unique_constraint(changeset, type_module) do
@@ -408,7 +386,6 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
       - `from_id` - Source node UUID (foreign key to nodes)
       - `to_id` - Target node UUID (foreign key to nodes)
       - `name` - Relationship type
-      - `weight` - Numeric weight for the relationship (default: 1.0)
       - `data` - Optional JSONB metadata (e.g., role, confidence, context)
       - `inserted_at` / `updated_at` - Timestamps
 
@@ -427,7 +404,6 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
       schema "edges" do
         field :name, :string
-        field :weight, :float, default: 1.0
         field :data, :map, default: %{}
 
         belongs_to :from, #{app_module}.Graph.Node
@@ -438,7 +414,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
       def changeset(edge, attrs) do
         edge
-        |> cast(attrs, [:name, :weight, :data, :from_id, :to_id])
+        |> cast(attrs, [:name, :data, :from_id, :to_id])
         |> validate_required([:name, :from_id, :to_id])
         |> foreign_key_constraint(:from_id)
         |> foreign_key_constraint(:to_id)
