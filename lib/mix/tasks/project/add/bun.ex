@@ -3,6 +3,8 @@ defmodule Mix.Tasks.Project.Add.Bun do
   @moduledoc "Replaces `esbuild` and `tailwind` with `Bun`."
   use Igniter.Mix.Task
 
+  alias Mix.Tasks.Project.Helpers
+
   @impl Igniter.Mix.Task
   def igniter(igniter) do
     igniter
@@ -33,7 +35,7 @@ defmodule Mix.Tasks.Project.Add.Bun do
         do: ["tailwindcss", "@tailwindcss/cli", "topbar", "bun"],
         else: ["tailwindcss", "@tailwindcss/cli", "bun"]
 
-    versions = fetch_npm_versions_parallel(packages)
+    versions = Helpers.fetch_npm_versions_parallel(packages)
 
     dependencies = %{
       "phoenix" => "workspace:*",
@@ -91,40 +93,6 @@ defmodule Mix.Tasks.Project.Add.Bun do
     end
   end
 
-  defp fetch_npm_versions_parallel(packages) do
-    packages
-    |> Enum.map(fn pkg -> Task.async(fn -> {pkg, fetch_npm_version(pkg)} end) end)
-    |> Task.await_many(10_000)
-    |> Map.new()
-  end
-
-  defp fetch_npm_version(package) do
-    cache_key = {:project_npm_version, package}
-
-    case :persistent_term.get(cache_key, :not_cached) do
-      :not_cached ->
-        version = do_fetch_npm_version(package)
-        :persistent_term.put(cache_key, version)
-        version
-
-      cached_version ->
-        cached_version
-    end
-  end
-
-  defp do_fetch_npm_version(package) do
-    url =
-      case String.split(package, "/", parts: 2) do
-        ["@" <> scope, name] -> "https://registry.npmjs.org/@#{scope}%2F#{name}"
-        [name] -> "https://registry.npmjs.org/#{name}"
-      end
-
-    case Req.get(url, receive_timeout: 5_000) do
-      {:ok, %{body: %{"dist-tags" => %{"latest" => version}}}} -> version
-      _ -> nil
-    end
-  end
-
   defp remove_esbuild(igniter) do
     igniter
     |> Igniter.Project.Config.remove_application_configuration("config.exs", :esbuild)
@@ -138,7 +106,7 @@ defmodule Mix.Tasks.Project.Add.Bun do
   end
 
   defp edit_config(igniter) do
-    version = fetch_npm_version("bun") || "1.3.5"
+    version = Helpers.fetch_npm_version("bun") || "1.3.5"
 
     igniter
     |> Igniter.Project.Config.configure("config.exs", :bun, [:version], version)

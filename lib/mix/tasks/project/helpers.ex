@@ -152,4 +152,40 @@ defmodule Mix.Tasks.Project.Helpers do
 
   defp pad(i) when i < 10, do: "0#{i}"
   defp pad(i), do: "#{i}"
+
+  @doc "Fetches latest npm versions for multiple packages in parallel"
+  def fetch_npm_versions_parallel(packages) do
+    packages
+    |> Enum.map(fn pkg -> Task.async(fn -> {pkg, fetch_npm_version(pkg)} end) end)
+    |> Task.await_many(10_000)
+    |> Map.new()
+  end
+
+  @doc "Fetches the latest npm version for a single package (cached via :persistent_term)"
+  def fetch_npm_version(package) do
+    cache_key = {:project_npm_version, package}
+
+    case :persistent_term.get(cache_key, :not_cached) do
+      :not_cached ->
+        version = do_fetch_npm_version(package)
+        :persistent_term.put(cache_key, version)
+        version
+
+      cached_version ->
+        cached_version
+    end
+  end
+
+  defp do_fetch_npm_version(package) do
+    url =
+      case String.split(package, "/", parts: 2) do
+        ["@" <> scope, name] -> "https://registry.npmjs.org/@#{scope}%2F#{name}"
+        [name] -> "https://registry.npmjs.org/#{name}"
+      end
+
+    case Req.get(url, receive_timeout: 5_000) do
+      {:ok, %{body: %{"dist-tags" => %{"latest" => version}}}} -> version
+      _ -> nil
+    end
+  end
 end

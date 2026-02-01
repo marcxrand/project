@@ -57,6 +57,7 @@ defmodule Mix.Tasks.Project.Setup do
       graph_db: Mix.Tasks.Project.Gen.GraphDb,
       mix_test_watch: Mix.Tasks.Project.Add.MixTestWatch,
       oban_pro: Mix.Tasks.Project.Add.ObanPro,
+      hotwire_native: Mix.Tasks.Project.Gen.HotwireNative,
       pgvector: Mix.Tasks.Project.Add.Pgvector
     ]
   end
@@ -102,6 +103,7 @@ defmodule Mix.Tasks.Project.Setup do
       # Other optional
       {:optional, :gigalixir},
       {:optional, :graph_db},
+      {:optional, :hotwire_native},
       {:optional, :mix_test_watch},
 
       # Sort dependencies
