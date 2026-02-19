@@ -32,12 +32,14 @@ defmodule Mix.Tasks.Project.Add.Oban do
   end
 
   defp add_app_logger(igniter) do
+    app_name = Igniter.Project.Application.app_name(igniter)
     app_module = Helpers.app_module(igniter)
     app_supervisor = Igniter.Project.Application.app_module(igniter)
     pattern = "opts = [strategy: :one_for_one, name: #{app_module}.Supervisor]"
 
     code = """
-    Oban.Telemetry.attach_default_logger()
+    opts = if Application.compile_env!(:#{app_name}, :env) == :dev, do: [events: [:job]], else: []
+    Oban.Telemetry.attach_default_logger(opts)
     """
 
     Igniter.Project.Module.find_and_update_module!(igniter, app_supervisor, fn zipper ->

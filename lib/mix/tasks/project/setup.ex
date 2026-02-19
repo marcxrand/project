@@ -84,6 +84,7 @@ defmodule Mix.Tasks.Project.Setup do
       Mix.Tasks.Project.Gen.PgExtensions,
       Mix.Tasks.Project.Gen.RepoConfig,
       Mix.Tasks.Project.Gen.Schema,
+      Mix.Tasks.Project.Gen.EnvConfig,
 
       # Add packages
       Mix.Tasks.Project.Add.Bun,
