@@ -38,7 +38,7 @@ defmodule Mix.Tasks.Project.Add.Oban do
     pattern = "opts = [strategy: :one_for_one, name: #{app_module}.Supervisor]"
 
     code = """
-    opts = if Application.compile_env!(:#{app_name}, :env) == :dev, do: [events: [:job]], else: []
+    opts = if Application.fetch_env!(:#{app_name}, :env) == :dev, do: [events: [:job]], else: []
     Oban.Telemetry.attach_default_logger(opts)
     """
 
