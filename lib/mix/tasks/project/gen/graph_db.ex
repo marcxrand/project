@@ -17,11 +17,11 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     |> add_embeddings_migration(repo)
     |> add_indexes_migration(repo)
     |> add_views_migration(repo)
-    |> add_atom_map_type()
     |> add_node_schema()
     |> add_edge_schema()
     |> add_embedding_schema()
     |> add_node_type_behaviour()
+    |> add_node_types_registry()
     |> add_member_node_type()
     |> Igniter.add_task("ecto.reset")
   end
@@ -151,69 +151,6 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     Mix.Tasks.Project.Helpers.gen_migration(igniter, repo, "add_views", body: migration_body)
   end
 
-  defp add_atom_map_type(igniter) do
-    app_module = Helpers.app_module(igniter)
-    app_name = Igniter.Project.Application.app_name(igniter)
-
-    content = ~s'''
-    defmodule #{app_module}.Ecto.AtomMap do
-      @moduledoc """
-      Custom Ecto type that stores maps as JSON but loads them with atom keys.
-
-      This ensures consistent atom key access throughout application code,
-      regardless of whether data was just inserted or loaded from the database.
-
-      ## Usage
-
-          schema "nodes" do
-            field :data, #{app_module}.Ecto.AtomMap
-          end
-
-      Then access with atom keys: `node.data[:name]` or `node.data.name`
-      """
-
-      use Ecto.Type
-
-      @impl true
-      def type, do: :map
-
-      @impl true
-      def cast(data) when is_map(data) do
-        {:ok, atomize_keys(data)}
-      end
-
-      def cast(_), do: :error
-
-      @impl true
-      def load(nil), do: {:ok, nil}
-
-      def load(data) when is_map(data) do
-        {:ok, atomize_keys(data)}
-      end
-
-      @impl true
-      def dump(nil), do: {:ok, nil}
-      def dump(data) when is_map(data), do: {:ok, data}
-      def dump(_), do: :error
-
-      # Structs (like DateTime) should pass through unchanged
-      defp atomize_keys(%_{} = struct), do: struct
-
-      defp atomize_keys(map) when is_map(map) do
-        Map.new(map, fn {k, v} -> {to_atom(k), atomize_keys(v)} end)
-      end
-
-      defp atomize_keys(list) when is_list(list), do: Enum.map(list, &atomize_keys/1)
-      defp atomize_keys(value), do: value
-
-      defp to_atom(key) when is_atom(key), do: key
-      defp to_atom(key) when is_binary(key), do: String.to_atom(key)
-    end
-    '''
-
-    Igniter.create_new_file(igniter, "lib/#{app_name}/ecto/atom_map.ex", content)
-  end
-
   defp add_node_type_behaviour(igniter) do
     app_name = Igniter.Project.Application.app_name(igniter)
     app_module = Helpers.app_module(igniter)
@@ -226,7 +163,8 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
       Each node type implements this behaviour to define:
       - Its type name (stored in the `type` column)
       - A changeset for validating the `data` field
-      - The conflict target for upsert operations
+      - Conflict keys for upsert operations
+      - Type-specific constraints
 
       ## Using the Macro
 
@@ -250,28 +188,16 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
         * `:type` - The type name string. Defaults to the lowercase last segment
           of the module name (e.g., `NodeType.Publication` → `"publication"`).
-        * `:conflict_field` - Required. The field used for upsert conflict detection.
+        * `:conflict_field` - The field used for upsert conflict detection.
       """
 
-      @doc """
-      Returns the type name stored in the `type` column.
-      """
       @callback type_name() :: String.t()
-
-      @doc """
-      Returns the SQL fragment for the conflict target used in upserts.
-      Should match the unique index for this type.
-      """
-      @callback conflict_target() :: String.t()
-
-      @doc """
-      Returns a changeset for validating the node's data.
-      The changeset is used to validate the `data` field before insertion.
-      """
       @callback changeset(data :: map()) :: Ecto.Changeset.t()
+      @callback conflict_keys() :: [atom()]
+      @callback put_constraints(Ecto.Changeset.t()) :: Ecto.Changeset.t()
 
       defmacro __using__(opts) do
-        conflict_field = Keyword.fetch!(opts, :conflict_field)
+        conflict_field = opts[:conflict_field]
 
         quote do
           @behaviour unquote(__MODULE__)
@@ -287,11 +213,17 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
           end
 
           @impl true
-          def conflict_target do
-            "((data->>'#\{unquote(conflict_field)}')) WHERE type = '#\{type_name()}'"
+          def conflict_keys do
+            case unquote(conflict_field) do
+              nil -> []
+              field -> [field]
+            end
           end
 
-          defoverridable type_name: 0, conflict_target: 0
+          @impl true
+          def put_constraints(changeset), do: changeset
+
+          defoverridable type_name: 0, conflict_keys: 0, put_constraints: 1
         end
       end
     end
@@ -308,31 +240,34 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     defmodule #{app_module}.Graph.Node do
       use #{app_module}.Schema
 
+      alias #{app_module}.Graph.NodeTypes
+
       schema "nodes" do
         field :type, :string
-        field :data, #{app_module}.Ecto.AtomMap
+        field :data, :map
         field :deleted_at, :utc_datetime_usec
 
         timestamps()
       end
 
-      def changeset(node, attrs, type_module) do
-        node
-        |> Ecto.Changeset.cast(attrs, [:type, :data, :deleted_at])
-        |> Ecto.Changeset.validate_required([:type, :data])
-        |> validate_data(type_module)
-        |> put_unique_constraint(type_module)
-      end
+      def changeset(node, attrs) do
+        changeset =
+          node
+          |> cast(attrs, [:type, :data, :deleted_at])
+          |> validate_required([:type, :data])
 
-      defp put_unique_constraint(changeset, type_module) do
-        case type_module.type_name() do
-          "member" -> Ecto.Changeset.unique_constraint(changeset, :data, name: :nodes_member_email_idx)
-          _ -> changeset
+        with {_, type} when is_binary(type) <- fetch_field(changeset, :type),
+             {:ok, type_module} <- NodeTypes.fetch(type) do
+          changeset
+          |> validate_data(type_module)
+          |> type_module.put_constraints()
+        else
+          _ -> add_error(changeset, :type, "is not a valid node type")
         end
       end
 
       defp validate_data(changeset, type_module) do
-        case Ecto.Changeset.get_field(changeset, :data) do
+        case get_field(changeset, :data) do
           nil ->
             changeset
 
@@ -342,14 +277,15 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
             if data_changeset.valid? do
               validated_data =
                 data_changeset
-                |> Ecto.Changeset.apply_changes()
+                |> apply_changes()
                 |> Map.from_struct()
                 |> Map.reject(fn {_k, v} -> is_nil(v) end)
+                |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
 
-              Ecto.Changeset.put_change(changeset, :data, validated_data)
+              put_change(changeset, :data, validated_data)
             else
               Enum.reduce(data_changeset.errors, changeset, fn {field, {msg, opts}}, cs ->
-                Ecto.Changeset.add_error(cs, :"data.\#{field}", msg, opts)
+                add_error(cs, :"data.\#{field}", msg, opts)
               end)
             end
         end
@@ -364,43 +300,18 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     app_name = Igniter.Project.Application.app_name(igniter)
     app_module = Helpers.app_module(igniter)
 
-    id_type =
-      if Igniter.Project.Deps.has_dep?(igniter, :uuidv7) do
-        "UUIDv7"
-      else
-        ":binary_id"
-      end
-
     content = ~s'''
     defmodule #{app_module}.Graph.Edge do
       @moduledoc """
-      Ecto schema for graph edges - relationships between nodes.
-
-      ## Overview
+      Ecto schema for graph edges — relationships between nodes.
 
       Edges represent directed relationships between nodes. Each edge has a `name`
       indicating the relationship type, and optional `data` for edge metadata.
 
-      ## Schema
-
-      - `from_id` - Source node UUID (foreign key to nodes)
-      - `to_id` - Target node UUID (foreign key to nodes)
-      - `name` - Relationship type
-      - `data` - Optional JSONB metadata (e.g., role, confidence, context)
-      - `inserted_at` / `updated_at` - Timestamps
-
-      ## Notes
-
-      - Uses UUIDv7 for ordered, time-based IDs
+      A unique constraint on `[from_id, to_id, name]` prevents duplicate edges.
       """
 
-      use Ecto.Schema
-
-      import Ecto.Changeset
-
-      @primary_key {:id, #{id_type}, autogenerate: true}
-      @foreign_key_type #{id_type}
-      @timestamps_opts [type: :utc_datetime_usec]
+      use #{app_module}.Schema
 
       schema "edges" do
         field :name, :string
@@ -429,44 +340,19 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     app_name = Igniter.Project.Application.app_name(igniter)
     app_module = Helpers.app_module(igniter)
 
-    id_type =
-      if Igniter.Project.Deps.has_dep?(igniter, :uuidv7) do
-        "UUIDv7"
-      else
-        ":binary_id"
-      end
-
     content = ~s'''
     defmodule #{app_module}.Graph.Embedding do
       @moduledoc """
-      Ecto schema for graph embeddings - vector representations of nodes.
-
-      ## Overview
+      Ecto schema for graph embeddings — vector representations of nodes.
 
       Embeddings store vector representations of node content for semantic search.
       Each embedding is associated with a node and includes the model used to
       generate it and the source text.
 
-      ## Schema
-
-      - `node_id` - Reference to the parent node
-      - `vector` - Vector embedding (1536 dimensions for OpenAI ada-002)
-      - `model` - Name of the embedding model used
-      - `text` - Source text that was embedded
-
-      ## Notes
-
-      - A node can have multiple embeddings from different models
-      - Unique constraint on `[node_id, model]` prevents duplicate embeddings
+      A unique constraint on `[node_id, model]` prevents duplicate embeddings.
       """
 
-      use Ecto.Schema
-
-      import Ecto.Changeset
-
-      @primary_key {:id, #{id_type}, autogenerate: true}
-      @foreign_key_type #{id_type}
-      @timestamps_opts [type: :utc_datetime_usec]
+      use #{app_module}.Schema
 
       schema "embeddings" do
         field :vector, Pgvector.Ecto.Vector
@@ -491,12 +377,36 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     Igniter.create_new_file(igniter, "lib/#{app_name}/graph/embedding.ex", content)
   end
 
+  defp add_node_types_registry(igniter) do
+    app_name = Igniter.Project.Application.app_name(igniter)
+    app_module = Helpers.app_module(igniter)
+
+    content = ~s'''
+    defmodule #{app_module}.Graph.NodeTypes do
+      @moduledoc """
+      Registry mapping node type name strings to their implementing modules.
+      """
+
+      @types %{
+        "member" => #{app_module}.Graph.Member
+      }
+
+      def module!(type), do: Map.fetch!(@types, type)
+      def fetch(type), do: Map.fetch(@types, type)
+      def valid?(type), do: Map.has_key?(@types, type)
+      def all, do: @types
+    end
+    '''
+
+    Igniter.create_new_file(igniter, "lib/#{app_name}/graph/node_types.ex", content)
+  end
+
   defp add_member_node_type(igniter) do
     app_name = Igniter.Project.Application.app_name(igniter)
     app_module = Helpers.app_module(igniter)
 
     content = ~s'''
-    defmodule #{app_module}.Graph.NodeType.Member do
+    defmodule #{app_module}.Graph.Member do
       use #{app_module}.Graph.NodeType, conflict_field: :email
 
       embedded_schema do
@@ -510,11 +420,16 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
         %__MODULE__{}
         |> cast(data, [:email, :signed_in_at, :signed_in_count])
         |> validate_required([:email])
-        |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/)
+        |> validate_format(:email, ~r/^[^ ]+@[^ ]+$/)
+      end
+
+      @impl true
+      def put_constraints(changeset) do
+        unique_constraint(changeset, :data, name: :nodes_member_email_idx)
       end
     end
     '''
 
-    Igniter.create_new_file(igniter, "lib/#{app_name}/graph/node_type/member.ex", content)
+    Igniter.create_new_file(igniter, "lib/#{app_name}/graph/member.ex", content)
   end
 end
