@@ -21,7 +21,6 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     |> add_edge_schema()
     |> add_embedding_schema()
     |> add_node_type_behaviour()
-    |> add_node_types_registry()
     |> add_member_node_type()
     |> Igniter.add_task("ecto.reset")
   end
@@ -158,72 +157,70 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     content = ~s'''
     defmodule #{app_module}.Graph.NodeType do
       @moduledoc """
-      Behaviour for defining node types in the graph.
+      Behaviour and registry for graph node types.
 
-      Each node type implements this behaviour to define:
-      - Its type name (stored in the `type` column)
-      - A changeset for validating the `data` field
-      - Conflict keys for upsert operations
-      - Type-specific constraints
+      Each node type implements this behaviour to define how its `data` field
+      is validated and what database constraints apply.
 
-      ## Using the Macro
+      ## Defining a Node Type
 
-          defmodule #{app_module}.Graph.NodeType.Publication do
-            use #{app_module}.Graph.NodeType, conflict_field: :host
+          defmodule #{app_module}.Graph.Member do
+            use #{app_module}.Graph.NodeType, conflict_field: :email
 
             embedded_schema do
-              field :host, :string
-              field :name, :string
+              field :email, :string
             end
 
             @impl true
             def changeset(data) do
               %__MODULE__{}
-              |> cast(data, [:host, :name])
-              |> validate_required([:host])
+              |> cast(data, [:email])
+              |> validate_required([:email])
             end
           end
 
       ## Options
 
         * `:type` - The type name string. Defaults to the lowercase last segment
-          of the module name (e.g., `NodeType.Publication` → `"publication"`).
+          of the module name (e.g., `Member` → `"member"`).
         * `:conflict_field` - The field used for upsert conflict detection.
+
+      ## Registry
+
+      Every node type must be added to the `@types` map below.
       """
 
-      @callback type_name() :: String.t()
       @callback changeset(data :: map()) :: Ecto.Changeset.t()
-      @callback conflict_keys() :: [atom()]
       @callback put_constraints(Ecto.Changeset.t()) :: Ecto.Changeset.t()
 
-      defmacro __using__(opts) do
-        conflict_field = opts[:conflict_field]
+      @types %{
+        "member" => #{app_module}.Graph.Member
+      }
 
+      def fetch!(type), do: Map.fetch!(@types, type)
+      def fetch(type), do: Map.fetch(@types, type)
+      def valid?(type), do: Map.has_key?(@types, type)
+      def all, do: @types
+
+      defmacro __using__(opts) do
         quote do
-          @behaviour unquote(__MODULE__)
+          @behaviour #{app_module}.Graph.NodeType
 
           use Ecto.Schema
           import Ecto.Changeset
 
           @primary_key false
 
-          @impl true
           def type_name do
             unquote(opts[:type]) || __MODULE__ |> Module.split() |> List.last() |> String.downcase()
           end
 
-          @impl true
-          def conflict_keys do
-            case unquote(conflict_field) do
-              nil -> []
-              field -> [field]
-            end
-          end
+          def conflict_keys, do: unquote(List.wrap(opts[:conflict_field]))
 
           @impl true
           def put_constraints(changeset), do: changeset
 
-          defoverridable type_name: 0, conflict_keys: 0, put_constraints: 1
+          defoverridable put_constraints: 1
         end
       end
     end
@@ -240,7 +237,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     defmodule #{app_module}.Graph.Node do
       use #{app_module}.Schema
 
-      alias #{app_module}.Graph.NodeTypes
+      alias #{app_module}.Graph.NodeType
 
       schema "nodes" do
         field :type, :string
@@ -257,7 +254,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
           |> validate_required([:type, :data])
 
         with {_, type} when is_binary(type) <- fetch_field(changeset, :type),
-             {:ok, type_module} <- NodeTypes.fetch(type) do
+             {:ok, type_module} <- NodeType.fetch(type) do
           changeset
           |> validate_data(type_module)
           |> type_module.put_constraints()
@@ -272,23 +269,22 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
             changeset
 
           data ->
-            data_changeset = type_module.changeset(data)
+            case apply_action(type_module.changeset(data), :validate) do
+              {:ok, validated} ->
+                put_change(changeset, :data, to_json_map(validated))
 
-            if data_changeset.valid? do
-              validated_data =
-                data_changeset
-                |> apply_changes()
-                |> Map.from_struct()
-                |> Map.reject(fn {_k, v} -> is_nil(v) end)
-                |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
-
-              put_change(changeset, :data, validated_data)
-            else
-              Enum.reduce(data_changeset.errors, changeset, fn {field, {msg, opts}}, cs ->
-                add_error(cs, :"data.\#{field}", msg, opts)
-              end)
+              {:error, data_changeset} ->
+                Enum.reduce(data_changeset.errors, changeset, fn {field, {msg, opts}}, cs ->
+                  add_error(cs, :"data.\#{field}", msg, opts)
+                end)
             end
         end
+      end
+
+      defp to_json_map(struct) do
+        struct
+        |> Map.from_struct()
+        |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
       end
     end
     '''
@@ -355,6 +351,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
       use #{app_module}.Schema
 
       schema "embeddings" do
+        field :type, :string
         field :vector, Pgvector.Ecto.Vector
         field :model, :string
         field :text, :string
@@ -366,8 +363,8 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
       def changeset(embedding, attrs) do
         embedding
-        |> cast(attrs, [:node_id, :vector, :model, :text])
-        |> validate_required([:node_id, :vector, :model, :text])
+        |> cast(attrs, [:type, :node_id, :vector, :model, :text])
+        |> validate_required([:type, :node_id, :vector, :model, :text])
         |> foreign_key_constraint(:node_id)
         |> unique_constraint([:node_id, :model])
       end
@@ -375,30 +372,6 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     '''
 
     Igniter.create_new_file(igniter, "lib/#{app_name}/graph/embedding.ex", content)
-  end
-
-  defp add_node_types_registry(igniter) do
-    app_name = Igniter.Project.Application.app_name(igniter)
-    app_module = Helpers.app_module(igniter)
-
-    content = ~s'''
-    defmodule #{app_module}.Graph.NodeTypes do
-      @moduledoc """
-      Registry mapping node type name strings to their implementing modules.
-      """
-
-      @types %{
-        "member" => #{app_module}.Graph.Member
-      }
-
-      def module!(type), do: Map.fetch!(@types, type)
-      def fetch(type), do: Map.fetch(@types, type)
-      def valid?(type), do: Map.has_key?(@types, type)
-      def all, do: @types
-    end
-    '''
-
-    Igniter.create_new_file(igniter, "lib/#{app_name}/graph/node_types.ex", content)
   end
 
   defp add_member_node_type(igniter) do

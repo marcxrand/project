@@ -60,10 +60,6 @@ defmodule Mix.Tasks.Project.Gen.HotwireNative do
 
     const application = Application.start()
 
-    // Import and register controllers here.
-    import HelloController from "./hello_controller"
-    application.register("hello", HelloController)
-
     // Bridge components (native app ↔ web communication).
     import BridgeButtonController from "./bridge/button_controller"
     application.register("bridge--button", BridgeButtonController)
@@ -71,20 +67,7 @@ defmodule Mix.Tasks.Project.Gen.HotwireNative do
     export { application }
     """
 
-    hello_content = """
-    import { Controller } from "@hotwired/stimulus"
-
-    // Connects to data-controller="hello"
-    export default class extends Controller {
-      connect() {
-        console.log("Hello, Stimulus!", this.element)
-      }
-    }
-    """
-
-    igniter
-    |> Igniter.create_new_file("assets/js/controllers/index.js", String.trim(index_content) <> "\n")
-    |> Igniter.create_new_file("assets/js/controllers/hello_controller.js", String.trim(hello_content) <> "\n")
+    Igniter.create_new_file(igniter, "assets/js/controllers/index.js", String.trim(index_content) <> "\n")
   end
 
   defp create_bridge_button_controller(igniter) do

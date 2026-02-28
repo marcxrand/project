@@ -27,11 +27,11 @@ defmodule Mix.Tasks.Project.Gen.PgExtensions do
     end
 
     def down do
-      execute "DROP EXTENSION IF EXISTS citext"
-      execute "DROP EXTENSION IF EXISTS pg_trgm"
-      execute "DROP EXTENSION IF EXISTS unaccent"
-      execute "DROP EXTENSION IF EXISTS vector"
       execute "DROP FUNCTION IF EXISTS public.f_unaccent(text);"
+      execute "DROP EXTENSION IF EXISTS vector"
+      execute "DROP EXTENSION IF EXISTS unaccent"
+      execute "DROP EXTENSION IF EXISTS pg_trgm"
+      execute "DROP EXTENSION IF EXISTS citext"
     end
     """
 
