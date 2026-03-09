@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Rework `graph_db` generator based on real-world usage
 - Replace `AtomMap` custom Ecto type with plain `:map` field
-- Replace `Node.changeset/3` with `changeset/2` using NodeTypes registry for type lookup
+- Replace Node `changeset/3` with `changeset/2` using NodeTypes registry for type lookup
 - Replace `conflict_target/0` callback with `conflict_keys/0` and add `put_constraints/1`
 - Move `Member` node type from `Graph.NodeType.Member` to `Graph.Member`
 - Use app's base `Schema` module in `Edge` and `Embedding` instead of inlining primary key config
