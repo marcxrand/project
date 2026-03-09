@@ -35,9 +35,7 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
     elixir_version=#{elixir}
 
     # Fetch Oban Pro
-    hook_pre_fetch_dependencies="mix hex.repo add oban https://repo.oban.pro \
-      --fetch-public-key SHA256:4/OSKi0NRF91QVVXlGAhb/BIMLnK8NHcx/EWs+aIWPc \
-      --auth-key ${OBAN_PRO_AUTH_KEY}"
+    hook_pre_fetch_dependencies="mix hex.repo add oban https://repo.oban.pro --fetch-public-key SHA256:4/OSKi0NRF91QVVXlGAhb/BIMLnK8NHcx/EWs+aIWPc --auth-key ${OBAN_PRO_AUTH_KEY}"
 
     # Run custom asset build after compilation (uses Bun via mix tasks)
     hook_post_compile="./build_assets"

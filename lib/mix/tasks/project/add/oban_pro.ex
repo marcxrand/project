@@ -13,6 +13,7 @@ defmodule Mix.Tasks.Project.Add.ObanPro do
     |> add_migration()
     |> edit_config()
     |> edit_oban_migration()
+    |> Igniter.Project.Formatter.import_dep(:oban_pro)
   end
 
   defp ensure_oban(igniter) do

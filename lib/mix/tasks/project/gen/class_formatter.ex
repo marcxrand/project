@@ -9,11 +9,7 @@ defmodule Mix.Tasks.Project.Gen.ClassFormatter do
   def igniter(igniter) do
     igniter
     |> add_formatter()
-    |> Igniter.add_notice("""
-    Run the following after setup to enable class sorting in mix format:
-
-        mix project.gen.class_formatter_config
-    """)
+    |> add_formatter_config()
   end
 
   defp add_formatter(igniter) do
@@ -72,5 +68,24 @@ defmodule Mix.Tasks.Project.Gen.ClassFormatter do
     """
 
     Igniter.create_new_file(igniter, path, content)
+  end
+
+  defp add_formatter_config(igniter) do
+    app_web_name = Helpers.app_web_module(igniter)
+
+    value =
+      Sourceror.parse_string!("""
+      if Code.ensure_loaded?(#{app_web_name}.Formatters.ClassFormatter) do
+        %{class: #{app_web_name}.Formatters.ClassFormatter}
+      else
+        %{}
+      end
+      """)
+
+    Igniter.update_elixir_file(igniter, ".formatter.exs", fn zipper ->
+      Igniter.Code.Keyword.set_keyword_key(zipper, :attribute_formatters, value, fn _ ->
+        {:ok, value}
+      end)
+    end)
   end
 end

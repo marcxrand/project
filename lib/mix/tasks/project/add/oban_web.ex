@@ -12,7 +12,6 @@ defmodule Mix.Tasks.Project.Add.ObanWeb do
     |> add_app_logger()
     |> edit_formatter()
     |> edit_router()
-    |> Igniter.add_notice("Run `mix project.gen.oban_web_format` to add Oban Web formatter config.")
   end
 
   defp add_dep(igniter) do

@@ -9,6 +9,6 @@ defmodule Mix.Tasks.Project.Add.Quokka do
 
     igniter
     |> Igniter.Project.Deps.add_dep({package, version, only: [:dev, :test], runtime: false})
-    |> Igniter.add_notice("Add `Quokka` to plugins in `.formatter.exs`")
+    |> Igniter.Project.Formatter.add_formatter_plugin(Quokka)
   end
 end

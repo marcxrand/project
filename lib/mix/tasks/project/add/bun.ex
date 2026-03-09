@@ -16,14 +16,16 @@ defmodule Mix.Tasks.Project.Add.Bun do
     |> edit_config()
     |> edit_config_dev()
     |> edit_mix_aliases()
-    |> Igniter.add_notice("Run `mix assets.setup` to install Bun and npm dependencies.")
+    |> Igniter.delay_task("assets.setup")
   end
 
   defp add_dep(igniter) do
     {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("bun")
-    opts = quote(do: [runtime: Mix.env() == :dev])
+    runtime = Sourceror.parse_string!("Mix.env() == :dev")
 
-    Igniter.Project.Deps.add_dep(igniter, {package, version, opts})
+    igniter
+    |> Igniter.Project.Deps.add_dep({package, version})
+    |> Igniter.Project.Deps.set_dep_option(:bun, :runtime, runtime)
   end
 
   defp add_package_json(igniter) do

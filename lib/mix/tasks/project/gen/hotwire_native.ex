@@ -23,7 +23,7 @@ defmodule Mix.Tasks.Project.Gen.HotwireNative do
     |> update_session_max_age()
     |> create_docs()
     |> add_npm_packages()
-    |> Igniter.add_notice("Run `mix assets.setup` to install Hotwire Native npm dependencies.")
+    |> Igniter.delay_task("assets.setup")
   end
 
   defp add_npm_packages(igniter) do
