@@ -15,7 +15,6 @@ defmodule Mix.Tasks.Project.Add.Oban do
     |> edit_config()
     |> edit_config_test()
     |> edit_formatter()
-    |> Igniter.add_task("ecto.reset")
   end
 
   defp add_dep(igniter) do

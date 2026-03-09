@@ -26,7 +26,11 @@ defmodule Mix.Tasks.Project.Setup do
     |> Enum.reduce(igniter, fn module, acc ->
       Igniter.compose_task(acc, module)
     end)
-    |> Igniter.add_task("deps.clean --unused")
+    |> Igniter.add_notice("""
+    Run the following to complete setup:
+
+        mix deps.clean --unused && mix deps.get && mix ecto.reset
+    """)
   end
 
   defp expand_optional_tasks(tasks, opts) do

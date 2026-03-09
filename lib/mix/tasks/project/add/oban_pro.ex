@@ -13,7 +13,6 @@ defmodule Mix.Tasks.Project.Add.ObanPro do
     |> add_migration()
     |> edit_config()
     |> edit_oban_migration()
-    |> Igniter.add_task("ecto.reset")
   end
 
   defp ensure_oban(igniter) do

@@ -20,9 +20,8 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     |> add_node_schema()
     |> add_edge_schema()
     |> add_embedding_schema()
-    |> add_node_type_behaviour()
     |> add_member_node_type()
-    |> Igniter.add_task("ecto.reset")
+    |> add_graph_context()
   end
 
   defp maybe_add_pg_extensions(igniter) do
@@ -63,7 +62,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     end
     """
 
-    Mix.Tasks.Project.Helpers.gen_migration(igniter, repo, "add_nodes", body: migration_body)
+    Helpers.gen_migration(igniter, repo, "add_nodes", body: migration_body)
   end
 
   defp add_edges_migration(igniter, repo) do
@@ -72,7 +71,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
       create table(:edges, primary_key: false) do
         add :id, :binary_id, primary_key: true
         add :name, :string, null: false
-        add :data, :map, null: false
+        add :data, :map, null: false, default: %{}
         add :from_id, references(:nodes, type: :binary_id), null: false
         add :to_id, references(:nodes, type: :binary_id), null: false
 
@@ -81,7 +80,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     end
     """
 
-    Mix.Tasks.Project.Helpers.gen_migration(igniter, repo, "add_edges", body: migration_body)
+    Helpers.gen_migration(igniter, repo, "add_edges", body: migration_body)
   end
 
   defp add_embeddings_migration(igniter, repo) do
@@ -91,7 +90,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
         add :id, :binary_id, primary_key: true
         add :type, :string, null: false
         add :text, :text, null: false
-        add :vector, :vector, size: 1536, null: false
+        add :vector, :vector, null: false
         add :model, :string, null: false
         add :node_id, references(:nodes, type: :binary_id), null: false
 
@@ -100,7 +99,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     end
     """
 
-    Mix.Tasks.Project.Helpers.gen_migration(igniter, repo, "add_embeddings", body: migration_body)
+    Helpers.gen_migration(igniter, repo, "add_embeddings", body: migration_body)
   end
 
   defp add_indexes_migration(igniter, repo) do
@@ -109,13 +108,11 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
       create index(:nodes, [:data], using: :gin)
       create index(:nodes, [:type])
       create index(:edges, [:data], using: :gin)
-      create index(:edges, [:from_id])
-      create index(:edges, [:to_id])
       create index(:edges, [:name])
       create index(:edges, [:from_id, :name])
       create index(:edges, [:to_id, :name])
-      create unique_index(:edges, [:from_id, :to_id, :name])
-      create unique_index(:embeddings, [:node_id, :model])
+      create index(:edges, [:from_id, :to_id, :name])
+      create unique_index(:embeddings, [:node_id, :model, :type])
 
       create unique_index(:nodes, ["(data->>'email')"],
               where: "type = 'member' AND deleted_at IS NULL",
@@ -130,10 +127,10 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
         "CREATE INDEX embeddings_vector_idx ON embeddings USING hnsw (vector vector_cosine_ops)",
         "DROP INDEX embeddings_vector_idx"
       )
-     end
+    end
     """
 
-    Mix.Tasks.Project.Helpers.gen_migration(igniter, repo, "add_indexes", body: migration_body)
+    Helpers.gen_migration(igniter, repo, "add_indexes", body: migration_body)
   end
 
   defp add_views_migration(igniter, repo) do
@@ -147,86 +144,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     end
     """
 
-    Mix.Tasks.Project.Helpers.gen_migration(igniter, repo, "add_views", body: migration_body)
-  end
-
-  defp add_node_type_behaviour(igniter) do
-    app_name = Igniter.Project.Application.app_name(igniter)
-    app_module = Helpers.app_module(igniter)
-
-    content = ~s'''
-    defmodule #{app_module}.Graph.NodeType do
-      @moduledoc """
-      Behaviour and registry for graph node types.
-
-      Each node type implements this behaviour to define how its `data` field
-      is validated and what database constraints apply.
-
-      ## Defining a Node Type
-
-          defmodule #{app_module}.Graph.Member do
-            use #{app_module}.Graph.NodeType, conflict_field: :email
-
-            embedded_schema do
-              field :email, :string
-            end
-
-            @impl true
-            def changeset(data) do
-              %__MODULE__{}
-              |> cast(data, [:email])
-              |> validate_required([:email])
-            end
-          end
-
-      ## Options
-
-        * `:type` - The type name string. Defaults to the lowercase last segment
-          of the module name (e.g., `Member` → `"member"`).
-        * `:conflict_field` - The field used for upsert conflict detection.
-
-      ## Registry
-
-      Every node type must be added to the `@types` map below.
-      """
-
-      @callback changeset(data :: map()) :: Ecto.Changeset.t()
-      @callback put_constraints(Ecto.Changeset.t()) :: Ecto.Changeset.t()
-
-      @types %{
-        "member" => #{app_module}.Graph.Member
-      }
-
-      def fetch!(type), do: Map.fetch!(@types, type)
-      def fetch(type), do: Map.fetch(@types, type)
-      def valid?(type), do: Map.has_key?(@types, type)
-      def all, do: @types
-
-      defmacro __using__(opts) do
-        quote do
-          @behaviour #{app_module}.Graph.NodeType
-
-          use Ecto.Schema
-          import Ecto.Changeset
-
-          @primary_key false
-
-          def type_name do
-            unquote(opts[:type]) || __MODULE__ |> Module.split() |> List.last() |> String.downcase()
-          end
-
-          def conflict_keys, do: unquote(List.wrap(opts[:conflict_field]))
-
-          @impl true
-          def put_constraints(changeset), do: changeset
-
-          defoverridable put_constraints: 1
-        end
-      end
-    end
-    '''
-
-    Igniter.create_new_file(igniter, "lib/#{app_name}/graph/node_type.ex", content)
+    Helpers.gen_migration(igniter, repo, "add_views", body: migration_body)
   end
 
   defp add_node_schema(igniter) do
@@ -237,54 +155,22 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     defmodule #{app_module}.Graph.Node do
       use #{app_module}.Schema
 
-      alias #{app_module}.Graph.NodeType
-
       schema "nodes" do
         field :type, :string
         field :data, :map
         field :deleted_at, :utc_datetime_usec
 
+        has_many :outgoing_edges, #{app_module}.Graph.Edge, foreign_key: :from_id
+        has_many :incoming_edges, #{app_module}.Graph.Edge, foreign_key: :to_id
+        has_many :embeddings, #{app_module}.Graph.Embedding
+
         timestamps()
       end
 
       def changeset(node, attrs) do
-        changeset =
-          node
-          |> cast(attrs, [:type, :data, :deleted_at])
-          |> validate_required([:type, :data])
-
-        with {_, type} when is_binary(type) <- fetch_field(changeset, :type),
-             {:ok, type_module} <- NodeType.fetch(type) do
-          changeset
-          |> validate_data(type_module)
-          |> type_module.put_constraints()
-        else
-          _ -> add_error(changeset, :type, "is not a valid node type")
-        end
-      end
-
-      defp validate_data(changeset, type_module) do
-        case get_field(changeset, :data) do
-          nil ->
-            changeset
-
-          data ->
-            case apply_action(type_module.changeset(data), :validate) do
-              {:ok, validated} ->
-                put_change(changeset, :data, to_json_map(validated))
-
-              {:error, data_changeset} ->
-                Enum.reduce(data_changeset.errors, changeset, fn {field, {msg, opts}}, cs ->
-                  add_error(cs, :"data.\#{field}", msg, opts)
-                end)
-            end
-        end
-      end
-
-      defp to_json_map(struct) do
-        struct
-        |> Map.from_struct()
-        |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
+        node
+        |> cast(attrs, [:type, :data])
+        |> validate_required([:type, :data])
       end
     end
     '''
@@ -303,8 +189,6 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
       Edges represent directed relationships between nodes. Each edge has a `name`
       indicating the relationship type, and optional `data` for edge metadata.
-
-      A unique constraint on `[from_id, to_id, name]` prevents duplicate edges.
       """
 
       use #{app_module}.Schema
@@ -345,7 +229,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
       Each embedding is associated with a node and includes the model used to
       generate it and the source text.
 
-      A unique constraint on `[node_id, model]` prevents duplicate embeddings.
+      A unique constraint on `[node_id, model, type]` prevents duplicate embeddings.
       """
 
       use #{app_module}.Schema
@@ -366,7 +250,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
         |> cast(attrs, [:type, :node_id, :vector, :model, :text])
         |> validate_required([:type, :node_id, :vector, :model, :text])
         |> foreign_key_constraint(:node_id)
-        |> unique_constraint([:node_id, :model])
+        |> unique_constraint([:node_id, :model, :type])
       end
     end
     '''
@@ -380,7 +264,19 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
     content = ~s'''
     defmodule #{app_module}.Graph.Member do
-      use #{app_module}.Graph.NodeType, conflict_field: :email
+      @moduledoc """
+      Example graph node type for members.
+
+      Node type modules are plain Ecto embedded schemas that define:
+
+        * `changeset/1` — validates the node's `data` field
+        * `put_constraints/1` — (optional) adds database constraints to the node changeset
+      """
+
+      use Ecto.Schema
+      import Ecto.Changeset
+
+      @primary_key false
 
       embedded_schema do
         field :email, :string
@@ -388,7 +284,6 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
         field :signed_in_count, :integer, default: 0
       end
 
-      @impl true
       def changeset(data) do
         %__MODULE__{}
         |> cast(data, [:email, :signed_in_at, :signed_in_count])
@@ -396,7 +291,6 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
         |> validate_format(:email, ~r/^[^ ]+@[^ ]+$/)
       end
 
-      @impl true
       def put_constraints(changeset) do
         unique_constraint(changeset, :data, name: :nodes_member_email_idx)
       end
@@ -404,5 +298,113 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
     '''
 
     Igniter.create_new_file(igniter, "lib/#{app_name}/graph/member.ex", content)
+  end
+
+  defp add_graph_context(igniter) do
+    app_name = Igniter.Project.Application.app_name(igniter)
+    app_module = Helpers.app_module(igniter)
+
+    content = ~s'''
+    defmodule #{app_module}.Graph do
+      @moduledoc """
+      Context for working with the graph database.
+      """
+
+      import Ecto.Query
+
+      alias #{app_module}.Repo
+      alias #{app_module}.Graph.{Node, Edge}
+
+      # Nodes
+
+      def create_node(type_module, attrs) do
+        with {:ok, data} <- cast_data(type_module, attrs) do
+          %Node{}
+          |> Node.changeset(%{type: type_name(type_module), data: data})
+          |> maybe_put_constraints(type_module)
+          |> Repo.insert()
+        end
+      end
+
+      def get_node(id), do: Repo.get(Node, id)
+      def get_node!(id), do: Repo.get!(Node, id)
+
+      def delete_node(%Node{} = node) do
+        node
+        |> Ecto.Changeset.change(deleted_at: DateTime.utc_now())
+        |> Repo.update()
+      end
+
+      # Edges
+
+      def connect(%Node{} = from, %Node{} = to, name, data \\\\ %{}) do
+        %Edge{}
+        |> Edge.changeset(%{from_id: from.id, to_id: to.id, name: name, data: data})
+        |> Repo.insert()
+      end
+
+      def disconnect(%Node{} = from, %Node{} = to, name) do
+        {count, _} =
+          from(e in Edge,
+            where: e.from_id == ^from.id and e.to_id == ^to.id and e.name == ^name
+          )
+          |> Repo.delete_all()
+
+        {:ok, count}
+      end
+
+      # Traversal
+
+      def neighbors_query(%Node{} = node, direction \\\\ :outgoing)
+
+      def neighbors_query(%Node{} = node, :outgoing) do
+        from(n in Node,
+          join: e in Edge, on: e.to_id == n.id,
+          where: e.from_id == ^node.id,
+          where: is_nil(n.deleted_at)
+        )
+      end
+
+      def neighbors_query(%Node{} = node, :incoming) do
+        from(n in Node,
+          join: e in Edge, on: e.from_id == n.id,
+          where: e.to_id == ^node.id,
+          where: is_nil(n.deleted_at)
+        )
+      end
+
+      def neighbors(%Node{} = node, direction \\\\ :outgoing) do
+        node |> neighbors_query(direction) |> Repo.all()
+      end
+
+      # Private
+
+      defp cast_data(type_module, attrs) do
+        with {:ok, struct} <- Ecto.Changeset.apply_action(type_module.changeset(attrs), :validate) do
+          {:ok, to_json_map(struct)}
+        end
+      end
+
+      defp to_json_map(struct) do
+        struct
+        |> Map.from_struct()
+        |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
+      end
+
+      defp type_name(module) do
+        module |> Module.split() |> List.last() |> String.downcase()
+      end
+
+      defp maybe_put_constraints(changeset, type_module) do
+        if function_exported?(type_module, :put_constraints, 1) do
+          type_module.put_constraints(changeset)
+        else
+          changeset
+        end
+      end
+    end
+    '''
+
+    Igniter.create_new_file(igniter, "lib/#{app_name}/graph.ex", content)
   end
 end

@@ -37,6 +37,5 @@ defmodule Mix.Tasks.Project.Gen.PgExtensions do
 
     igniter
     |> Mix.Tasks.Project.Helpers.gen_migration(repo, "add_extensions", body: migration_body)
-    |> Igniter.add_task("ecto.reset")
   end
 end

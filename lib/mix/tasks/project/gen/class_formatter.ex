@@ -9,8 +9,11 @@ defmodule Mix.Tasks.Project.Gen.ClassFormatter do
   def igniter(igniter) do
     igniter
     |> add_formatter()
-    |> Igniter.add_task("compile")
-    |> Igniter.add_task("project.gen.class_formatter_config")
+    |> Igniter.add_notice("""
+    Run the following after setup to enable class sorting in mix format:
+
+        mix project.gen.class_formatter_config
+    """)
   end
 
   defp add_formatter(igniter) do

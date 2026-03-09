@@ -16,7 +16,7 @@ defmodule Mix.Tasks.Project.Add.Bun do
     |> edit_config()
     |> edit_config_dev()
     |> edit_mix_aliases()
-    |> Igniter.add_task("assets.setup")
+    |> Igniter.add_notice("Run `mix assets.setup` to install Bun and npm dependencies.")
   end
 
   defp add_dep(igniter) do
