@@ -15,7 +15,7 @@ defmodule Mix.Tasks.Project.Add.Pgvector do
   end
 
   defp add_dep(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("pgvector")
+    {package, version} = Helpers.latest_hex_dep(:pgvector)
     Igniter.Project.Deps.add_dep(igniter, {package, version})
   end
 

@@ -3,6 +3,8 @@ defmodule Mix.Tasks.Project.Add.Uuidv7 do
   @moduledoc "Adds `uuidv7` for time-sortable UUIDs."
   use Igniter.Mix.Task
 
+  alias Mix.Tasks.Project.Helpers
+
   @impl Igniter.Mix.Task
   def igniter(igniter) do
     igniter
@@ -11,7 +13,7 @@ defmodule Mix.Tasks.Project.Add.Uuidv7 do
   end
 
   defp add_dep(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("uuidv7")
+    {package, version} = Helpers.latest_hex_dep(:uuidv7)
     Igniter.Project.Deps.add_dep(igniter, {package, version})
   end
 

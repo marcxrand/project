@@ -14,7 +14,7 @@ defmodule Mix.Tasks.Project.Add.Libcluster do
   end
 
   defp add_dep(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("libcluster")
+    {package, version} = Helpers.latest_hex_dep(:libcluster)
     Igniter.Project.Deps.add_dep(igniter, {package, version})
   end
 

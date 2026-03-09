@@ -3,6 +3,8 @@ defmodule Mix.Tasks.Project.Add.ExSync do
   @moduledoc "Adds `ex_sync` to reload modules on file changes."
   use Igniter.Mix.Task
 
+  alias Mix.Tasks.Project.Helpers
+
   @impl Igniter.Mix.Task
   def igniter(igniter) do
     igniter
@@ -11,7 +13,7 @@ defmodule Mix.Tasks.Project.Add.ExSync do
   end
 
   defp add_dep(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("exsync")
+    {package, version} = Helpers.latest_hex_dep(:exsync)
     Igniter.Project.Deps.add_dep(igniter, {package, version, only: :dev})
   end
 

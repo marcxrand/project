@@ -161,6 +161,45 @@ defmodule Mix.Tasks.Project.Helpers do
     |> Map.new()
   end
 
+  @doc "Fetches the latest Hex version and returns a dep tuple (e.g., `{:oban, \"~> 2.19\"}`)"
+  def latest_hex_dep(package) when is_atom(package) do
+    case fetch_hex_version(Atom.to_string(package)) do
+      nil ->
+        Igniter.Project.Deps.determine_dep_type_and_version!(Atom.to_string(package))
+
+      version ->
+        {package, "~> #{major_minor(version)}"}
+    end
+  end
+
+  @doc "Fetches the latest stable version string from Hex (cached via :persistent_term)"
+  def fetch_hex_version(package) do
+    cache_key = {:project_hex_version, package}
+
+    case :persistent_term.get(cache_key, :not_cached) do
+      :not_cached ->
+        version = do_fetch_hex_version(package)
+        :persistent_term.put(cache_key, version)
+        version
+
+      cached_version ->
+        cached_version
+    end
+  end
+
+  defp do_fetch_hex_version(package) do
+    Application.ensure_all_started(:req)
+
+    case Req.get("https://hex.pm/api/packages/#{package}", receive_timeout: 5_000) do
+      {:ok, %{body: %{"latest_stable_version" => version}}} -> version
+      _ -> nil
+    end
+  end
+
+  defp major_minor(version) do
+    version |> String.split(".") |> Enum.take(2) |> Enum.join(".")
+  end
+
   @doc "Fetches the latest npm version for a single package (cached via :persistent_term)"
   def fetch_npm_version(package) do
     cache_key = {:project_npm_version, package}
@@ -177,6 +216,8 @@ defmodule Mix.Tasks.Project.Helpers do
   end
 
   defp do_fetch_npm_version(package) do
+    Application.ensure_all_started(:req)
+
     url =
       case String.split(package, "/", parts: 2) do
         ["@" <> scope, name] -> "https://registry.npmjs.org/@#{scope}%2F#{name}"

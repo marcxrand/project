@@ -3,6 +3,8 @@ defmodule Mix.Tasks.Project.Add.Tidewave do
   @moduledoc "Adds `tidewave` AI assistant."
   use Igniter.Mix.Task
 
+  alias Mix.Tasks.Project.Helpers
+
   @impl Igniter.Mix.Task
   def igniter(igniter) do
     igniter
@@ -11,7 +13,7 @@ defmodule Mix.Tasks.Project.Add.Tidewave do
   end
 
   defp add_dep(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("tidewave")
+    {package, version} = Helpers.latest_hex_dep(:tidewave)
     Igniter.Project.Deps.add_dep(igniter, {package, version, only: :dev})
   end
 

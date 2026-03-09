@@ -15,7 +15,7 @@ defmodule Mix.Tasks.Project.Add.ObanWeb do
   end
 
   defp add_dep(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("oban_web")
+    {package, version} = Helpers.latest_hex_dep(:oban_web)
     Igniter.Project.Deps.add_dep(igniter, {package, version})
   end
 
@@ -52,6 +52,7 @@ defmodule Mix.Tasks.Project.Add.ObanWeb do
 
       oban_dashboard "/oban"
       """, router: router)
+    |> Igniter.add_task("project.gen.oban_web_format")
   end
 
   defp add_router_import(igniter, router) do

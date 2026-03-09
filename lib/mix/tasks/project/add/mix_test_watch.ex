@@ -3,9 +3,11 @@ defmodule Mix.Tasks.Project.Add.MixTestWatch do
   @moduledoc "Adds `mix_test_watch` to automatically run tests on file changes."
   use Igniter.Mix.Task
 
+  alias Mix.Tasks.Project.Helpers
+
   @impl Igniter.Mix.Task
   def igniter(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("mix_test_watch")
+    {package, version} = Helpers.latest_hex_dep(:mix_test_watch)
 
     igniter
     |> Igniter.Project.Deps.add_dep({package, version, only: [:dev, :test], runtime: false})

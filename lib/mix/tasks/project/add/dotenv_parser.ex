@@ -3,6 +3,8 @@ defmodule Mix.Tasks.Project.Add.DotenvParser do
   @moduledoc "Adds `dotenv_parser` to load environment variables from `.env` file."
   use Igniter.Mix.Task
 
+  alias Mix.Tasks.Project.Helpers
+
   @impl Igniter.Mix.Task
   def igniter(igniter) do
     igniter
@@ -13,7 +15,7 @@ defmodule Mix.Tasks.Project.Add.DotenvParser do
   end
 
   defp add_dep(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("dotenv_parser")
+    {package, version} = Helpers.latest_hex_dep(:dotenv_parser)
     Igniter.Project.Deps.add_dep(igniter, {package, version})
   end
 

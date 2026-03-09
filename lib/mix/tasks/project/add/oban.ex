@@ -18,7 +18,7 @@ defmodule Mix.Tasks.Project.Add.Oban do
   end
 
   defp add_dep(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("oban")
+    {package, version} = Helpers.latest_hex_dep(:oban)
     Igniter.Project.Deps.add_dep(igniter, {package, version})
   end
 

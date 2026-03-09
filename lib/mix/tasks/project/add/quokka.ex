@@ -3,12 +3,14 @@ defmodule Mix.Tasks.Project.Add.Quokka do
   @moduledoc "Adds `quokka` for simple data administration."
   use Igniter.Mix.Task
 
+  alias Mix.Tasks.Project.Helpers
+
   @impl Igniter.Mix.Task
   def igniter(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("quokka")
+    {package, version} = Helpers.latest_hex_dep(:quokka)
 
     igniter
     |> Igniter.Project.Deps.add_dep({package, version, only: [:dev, :test], runtime: false})
-    |> Igniter.Project.Formatter.add_formatter_plugin(Quokka)
+    |> Igniter.add_notice("Add `Quokka` to the `plugins` list in `.formatter.exs`")
   end
 end

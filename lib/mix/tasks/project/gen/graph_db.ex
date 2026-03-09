@@ -90,7 +90,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
         add :id, :binary_id, primary_key: true
         add :type, :string, null: false
         add :text, :text, null: false
-        add :vector, :vector, null: false
+        add :vector, :vector, size: 1536, null: false
         add :model, :string, null: false
         add :node_id, references(:nodes, type: :binary_id), null: false
 
@@ -355,7 +355,7 @@ defmodule Mix.Tasks.Project.Gen.GraphDb do
 
       # Traversal
 
-      def neighbors_query(%Node{} = node, direction \\\\ :outgoing)
+      def neighbors_query(node, direction \\\\ :outgoing)
 
       def neighbors_query(%Node{} = node, :outgoing) do
         from(n in Node,

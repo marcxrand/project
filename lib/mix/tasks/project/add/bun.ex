@@ -20,7 +20,7 @@ defmodule Mix.Tasks.Project.Add.Bun do
   end
 
   defp add_dep(igniter) do
-    {package, version} = Igniter.Project.Deps.determine_dep_type_and_version!("bun")
+    {package, version} = Helpers.latest_hex_dep(:bun)
     runtime = Sourceror.parse_string!("Mix.env() == :dev")
 
     igniter
@@ -43,13 +43,13 @@ defmodule Mix.Tasks.Project.Add.Bun do
       "phoenix" => "workspace:*",
       "phoenix_html" => "workspace:*",
       "phoenix_live_view" => "workspace:*",
-      "tailwindcss" => versions["tailwindcss"] || "^4.1.18",
-      "@tailwindcss/cli" => versions["@tailwindcss/cli"] || "^4.1.18"
+      "tailwindcss" => "^#{versions["tailwindcss"] || "4.1.18"}",
+      "@tailwindcss/cli" => "^#{versions["@tailwindcss/cli"] || "4.1.18"}"
     }
 
     dependencies =
       if has_topbar? do
-        Map.put(dependencies, "topbar", versions["topbar"] || "^3.0.0")
+        Map.put(dependencies, "topbar", "^#{versions["topbar"] || "3.0.0"}")
       else
         dependencies
       end
