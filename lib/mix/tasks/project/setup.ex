@@ -76,7 +76,6 @@ defmodule Mix.Tasks.Project.Setup do
       Mix.Tasks.Project.Remove.AgentsMd,
       Mix.Tasks.Project.Remove.DaisyUI,
       Mix.Tasks.Project.Remove.LiveTitleSuffix,
-      Mix.Tasks.Project.Remove.RepoCredentials,
       Mix.Tasks.Project.Remove.ThemeToggle,
       Mix.Tasks.Project.Remove.Topbar,
 

@@ -103,27 +103,6 @@ defmodule Mix.Tasks.Project.Helpers do
     end)
   end
 
-  def remove_config_key(igniter, file, app, module, key) do
-    Igniter.update_elixir_file(igniter, "config/#{file}", fn zipper ->
-      zipper
-      |> Sourceror.Zipper.topmost()
-      |> Igniter.Code.Common.move_to(fn z ->
-        Igniter.Code.Function.function_call?(z, :config, 3) and
-          Igniter.Code.Function.argument_equals?(z, 0, app) and
-          Igniter.Code.Function.argument_equals?(z, 1, module)
-      end)
-      |> case do
-        {:ok, zipper} ->
-          Igniter.Code.Function.update_nth_argument(zipper, 2, fn opts_zipper ->
-            Igniter.Code.Keyword.remove_keyword_key(opts_zipper, key)
-          end)
-
-        :error ->
-          {:ok, zipper}
-      end
-    end)
-  end
-
   @doc """
   Generates a migration with a unique timestamp.
 
