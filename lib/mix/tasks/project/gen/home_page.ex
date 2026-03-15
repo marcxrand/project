@@ -12,9 +12,9 @@ defmodule Mix.Tasks.Project.Gen.HomePage do
 
     content = """
     <Layouts.app flash={@flash}>
-      <main class="flex justify-center">
+      <div class="flex justify-center">
         <div class="bg-gray-100 px-20 py-16">Home Page</div>
-      </main>
+      </div>
     </Layouts.app>
     """
 

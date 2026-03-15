@@ -35,29 +35,39 @@ defmodule Mix.Tasks.Project.Add.Pgvector do
       )
 
     if migration_path do
-      igniter
-      |> Igniter.update_elixir_file(migration_path, fn zipper ->
-        zipper
-        |> Igniter.Code.Function.move_to_def(:up, 0)
-        |> case do
-          {:ok, zipper} ->
-            Igniter.Code.Common.add_code(
-              zipper,
-              ~s|execute "CREATE EXTENSION IF NOT EXISTS vector"|
-            )
+      source = Rewrite.source!(igniter.rewrite, migration_path)
+      content = Rewrite.Source.get(source, :content)
 
-          :error ->
-            zipper
-        end
-        |> Igniter.Code.Function.move_to_def(:down, 0)
-        |> case do
-          {:ok, zipper} ->
-            Igniter.Code.Common.add_code(zipper, ~s|execute "DROP EXTENSION IF EXISTS vector"|)
+      if String.contains?(content, ~s|CREATE EXTENSION IF NOT EXISTS vector|) do
+        igniter
+      else
+        igniter
+        |> Igniter.update_elixir_file(migration_path, fn zipper ->
+          zipper
+          |> Igniter.Code.Function.move_to_def(:up, 0)
+          |> case do
+            {:ok, zipper} ->
+              Igniter.Code.Common.add_code(
+                zipper,
+                ~s|execute "CREATE EXTENSION IF NOT EXISTS vector"|
+              )
 
-          :error ->
-            zipper
-        end
-      end)
+            :error ->
+              zipper
+          end
+          |> Igniter.Code.Function.move_to_def(:down, 0)
+          |> case do
+            {:ok, zipper} ->
+              Igniter.Code.Common.add_code(
+                zipper,
+                ~s|execute "DROP EXTENSION IF EXISTS vector"|
+              )
+
+            :error ->
+              zipper
+          end
+        end)
+      end
     else
       body = """
       def up do

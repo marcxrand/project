@@ -105,7 +105,7 @@ defmodule Mix.Tasks.Project.Gen.Gigalixir do
     scripts_module = Igniter.Project.Module.module_name(igniter, "Scripts")
 
     content = """
-    defmodule #{scripts_module} do
+    defmodule #{inspect(scripts_module)} do
       def migrate do
         load_app()
 

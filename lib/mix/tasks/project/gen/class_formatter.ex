@@ -57,12 +57,9 @@ defmodule Mix.Tasks.Project.Gen.ClassFormatter do
       end
 
       defp has_state_prefix?([_single]), do: false
-      defp has_state_prefix?(parts), do: check_prefixes(parts)
 
-      defp check_prefixes([_last]), do: false
-
-      defp check_prefixes([head | tail]) do
-        MapSet.member?(@state_keywords, head) or check_prefixes(tail)
+      defp has_state_prefix?(parts) do
+        parts |> Enum.drop(-1) |> Enum.any?(&MapSet.member?(@state_keywords, &1))
       end
     end
     """
