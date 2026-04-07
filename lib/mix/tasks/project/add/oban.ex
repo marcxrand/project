@@ -31,18 +31,12 @@ defmodule Mix.Tasks.Project.Add.Oban do
   end
 
   defp add_app_logger(igniter) do
-    app_name = Igniter.Project.Application.app_name(igniter)
     app_module = Helpers.app_module(igniter)
     app_supervisor = Igniter.Project.Application.app_module(igniter)
     pattern = "opts = [strategy: :one_for_one, name: #{app_module}.Supervisor]"
 
     code = """
-    Application.fetch_env!(:#{app_name}, :env)
-    |> case do
-      :dev -> [events: [:job]]
-      _ -> []
-    end
-    |> Oban.Telemetry.attach_default_logger()
+    Oban.Telemetry.attach_default_logger()
     """
 
     Igniter.Project.Module.find_and_update_module!(igniter, app_supervisor, fn zipper ->
@@ -57,8 +51,15 @@ defmodule Mix.Tasks.Project.Add.Oban do
     repo = Helpers.repo(igniter)
 
     migration_body = """
-    def up, do: Oban.Migration.up(version: 12)
-    def down, do: Oban.Migration.down(version: 1)
+    def up do
+      Oban.Migration.up(version: 12)
+    end
+
+    # We specify `version: 1` in `down`, ensuring that we'll roll all the way back down if
+    # necessary, regardless of which version we've migrated `up` to.
+    def down do
+      Oban.Migration.down(version: 1)
+    end
     """
 
     Mix.Tasks.Project.Helpers.gen_migration(igniter, repo, "add_oban", body: migration_body)

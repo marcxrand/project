@@ -12,7 +12,6 @@ defmodule Mix.Tasks.Project.Add.ObanPro do
     |> add_dep()
     |> add_migration()
     |> edit_config()
-    |> edit_oban_migration()
     |> Igniter.Project.Formatter.import_dep(:oban_pro)
   end
 
@@ -25,7 +24,7 @@ defmodule Mix.Tasks.Project.Add.ObanPro do
   end
 
   defp add_dep(igniter) do
-    Igniter.Project.Deps.add_dep(igniter, {:oban_pro, "~> 1.6", repo: "oban"})
+    Igniter.Project.Deps.add_dep(igniter, {:oban_pro, "~> 1.7.0-rc", repo: "oban"})
   end
 
   defp add_migration(igniter) do
@@ -50,11 +49,12 @@ defmodule Mix.Tasks.Project.Add.ObanPro do
            engine: Oban.Pro.Engines.Smart,
            notifier: Oban.Notifiers.PG,
            plugins: [
-             {Oban.Pro.Plugins.DynamicCron, crontab: []},
+             {Oban.Pro.Plugins.DynamicCron, [crontab: []]},
              Oban.Pro.Plugins.DynamicLifeline,
-             Oban.Pro.Plugins.DynamicPartitioner,
              Oban.Pro.Plugins.DynamicPrioritizer,
-             {Oban.Pro.Plugins.DynamicQueues, queues: [default: 10], sync_mode: :automatic}
+             Oban.Pro.Plugins.DynamicPruner,
+             {Oban.Pro.Plugins.DynamicQueues,
+              [queues: [default: 10, webhooks: 20], sync_mode: :automatic]}
            ],
            repo: unquote(repo)
          ]
@@ -63,47 +63,4 @@ defmodule Mix.Tasks.Project.Add.ObanPro do
     Igniter.Project.Config.configure(igniter, "config.exs", app_name, [Oban], opts)
   end
 
-  defp edit_oban_migration(igniter) do
-    app_module = Helpers.app_module(igniter)
-    repo_name = Helpers.repo(igniter) |> Module.split() |> List.last() |> Macro.underscore()
-    migrations_path = "priv/#{repo_name}/migrations"
-
-    igniter
-    |> Igniter.include_glob(Path.join(migrations_path, "*_add_oban.exs"))
-    |> then(fn igniter ->
-      igniter.rewrite
-      |> Rewrite.sources()
-      |> Enum.find(fn source -> String.ends_with?(source.path, "_add_oban.exs") end)
-      |> case do
-        nil ->
-          igniter
-
-        source ->
-          module_name = oban_migration_module_name(app_module, source.path)
-
-          new_content = """
-          defmodule #{module_name} do
-            use Ecto.Migration
-
-            defdelegate up, to: Oban.Pro.Migrations.DynamicPartitioner
-            defdelegate down, to: Oban.Pro.Migrations.DynamicPartitioner
-          end
-          """
-
-          Igniter.update_file(igniter, source.path, fn source ->
-            Rewrite.Source.update(source, :content, new_content)
-          end)
-      end
-    end)
-  end
-
-  defp oban_migration_module_name(app_module, path) do
-    migration_name =
-      path
-      |> Path.basename(".exs")
-      |> String.replace(~r/^\d+_/, "")
-      |> Macro.camelize()
-
-    "#{app_module}.Repo.Migrations.#{migration_name}"
-  end
 end

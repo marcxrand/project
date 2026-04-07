@@ -21,7 +21,7 @@ defmodule Mix.Tasks.Project.Add.DotenvParser do
 
   defp edit_runtime_exs(igniter) do
     code = """
-    if config_env() == :dev and Code.ensure_loaded?(DotenvParser) and File.exists?(".env") do
+    if Code.ensure_loaded?(DotenvParser) and File.exists?(".env") do
       DotenvParser.load_file(".env")
     end
     """

@@ -14,6 +14,8 @@ defmodule Mix.Tasks.Project.Gen.HotwireNative do
     igniter
     |> create_stimulus_controllers()
     |> create_bridge_button_controller()
+    |> create_bridge_menu_controller()
+    |> create_bridge_form_controller()
     |> update_app_js()
     |> update_app_css()
     |> create_hotwire_native_plug()
@@ -62,7 +64,12 @@ defmodule Mix.Tasks.Project.Gen.HotwireNative do
 
     // Bridge components (native app ↔ web communication).
     import BridgeButtonController from "./bridge/button_controller"
+    import BridgeMenuController from "./bridge/menu_controller"
+    import BridgeFormController from "./bridge/form_controller"
+
     application.register("bridge--button", BridgeButtonController)
+    application.register("bridge--menu", BridgeMenuController)
+    application.register("bridge--form", BridgeFormController)
 
     export { application }
     """
@@ -100,6 +107,91 @@ defmodule Mix.Tasks.Project.Gen.HotwireNative do
     Igniter.create_new_file(
       igniter,
       "assets/js/controllers/bridge/button_controller.js",
+      String.trim(content) <> "\n"
+    )
+  end
+
+  defp create_bridge_menu_controller(igniter) do
+    content = """
+    import { BridgeComponent } from "@hotwired/hotwire-native-bridge"
+
+    // Connects to data-controller="bridge--menu"
+    //
+    // On native apps, sends menu items to the native side which renders a
+    // platform-appropriate action sheet (iOS) or bottom sheet (Android).
+    // When an item is tapped, the callback clicks the original HTML element
+    // to follow links or submit Turbo method requests.
+    //
+    // Usage:
+    //   <div data-controller="bridge--menu" title="Actions">
+    //     <a href="/items/1/edit" data-bridge--menu-target="item">Edit</a>
+    //     <a href="/items/1" data-turbo-method="delete" data-destructive="true"
+    //        data-bridge--menu-target="item">Delete</a>
+    //   </div>
+    export default class extends BridgeComponent {
+      static component = "menu"
+      static targets = ["item"]
+
+      connect() {
+        super.connect()
+
+        const title = this.bridgeElement.title
+        const items = this.itemTargets.map(item => ({
+          title: item.textContent.trim(),
+          url: item.getAttribute("href"),
+          method: item.dataset.turboMethod || "get",
+          destructive: item.dataset.destructive === "true"
+        }))
+
+        this.send("connect", { title, items }, ({ selectedIndex }) => {
+          this.itemTargets[selectedIndex]?.click()
+        })
+      }
+    }
+    """
+
+    Igniter.create_new_file(
+      igniter,
+      "assets/js/controllers/bridge/menu_controller.js",
+      String.trim(content) <> "\n"
+    )
+  end
+
+  defp create_bridge_form_controller(igniter) do
+    content = """
+    import { BridgeComponent } from "@hotwired/hotwire-native-bridge"
+
+    // Connects to data-controller="bridge--form"
+    //
+    // On native apps, sends the submit button title to the native side which
+    // renders a native navigation bar button. When tapped, the callback submits
+    // the HTML form. Coordinates with Turbo's form submission lifecycle.
+    //
+    // Usage:
+    //   <form data-controller="bridge--form" data-submit-title="Save">
+    //     <!-- form fields -->
+    //     <button type="submit" class="hotwire-native:hidden">Save</button>
+    //   </form>
+    //
+    // The web submit button is hidden on native (replaced by the native nav bar
+    // button). On web, this controller is a no-op and the HTML button works normally.
+    export default class extends BridgeComponent {
+      static component = "form"
+
+      connect() {
+        super.connect()
+
+        const title = this.bridgeElement.dataset.submitTitle || "Submit"
+        this.send("connect", { title }, () => {
+          this.bridgeElement.requestSubmit()
+        })
+      }
+    }
+    """
+
+    Igniter.create_new_file(
+      igniter,
+      "assets/js/controllers/bridge/form_controller.js",
       String.trim(content) <> "\n"
     )
   end
@@ -774,7 +866,12 @@ defmodule Mix.Tasks.Project.Gen.HotwireNative do
 
     ```javascript
     import BridgeButtonController from "./bridge/button_controller"
+    import BridgeMenuController from "./bridge/menu_controller"
+    import BridgeFormController from "./bridge/form_controller"
+
     application.register("bridge--button", BridgeButtonController)
+    application.register("bridge--menu", BridgeMenuController)
+    application.register("bridge--form", BridgeFormController)
     ```
 
     ### Native Side (iOS — Swift)
@@ -791,14 +888,22 @@ defmodule Mix.Tasks.Project.Gen.HotwireNative do
 
     Register in `AppDelegate.swift`:
     ```swift
-    Hotwire.registerBridgeComponents([ButtonComponent.self])
+    Hotwire.registerBridgeComponents([
+        ButtonComponent.self,
+        MenuComponent.self,
+        FormComponent.self
+    ])
     ```
 
     ### Native Side (Android — Kotlin)
 
     Register in the Application subclass:
     ```kotlin
-    Hotwire.registerBridgeComponents(BridgeComponentFactory("button", ::ButtonComponent))
+    Hotwire.registerBridgeComponents(
+        BridgeComponentFactory("button", ::ButtonComponent),
+        BridgeComponentFactory("menu", ::MenuComponent),
+        BridgeComponentFactory("form", ::FormComponent)
+    )
     ```
 
     ---
@@ -925,6 +1030,45 @@ defmodule Mix.Tasks.Project.Gen.HotwireNative do
 
     The `title` attribute is read by the bridge controller and sent to the native
     side, which renders a native button with that label in the navigation bar.
+
+    ### Menu bridge component (native action sheet)
+    ```heex
+    <div data-controller="bridge--menu" title="Actions">
+      <a href={~p"/items/\#{@item}/edit"} data-bridge--menu-target="item">Edit</a>
+      <a href={~p"/items/\#{@item}"} data-turbo-method="delete" data-destructive="true"
+         data-bridge--menu-target="item">Delete</a>
+    </div>
+    ```
+
+    On native, this renders a platform-appropriate action sheet (iOS) or bottom
+    sheet (Android) from the navigation bar. Each `data-bridge--menu-target="item"`
+    element becomes a menu item. The `data-turbo-method` attribute sets the HTTP
+    method and `data-destructive="true"` renders the item in red/warning style.
+
+    On web, the bridge controller is inert and the links render as normal HTML.
+
+    The native side needs a `MenuComponent` (iOS: Swift, Android: Kotlin) that
+    receives the `{ title, items }` message and renders the action sheet. When a
+    menu item is tapped, it replies with `{ selectedIndex }` and the bridge
+    clicks the corresponding HTML element.
+
+    ### Form bridge component (native submit button)
+    ```heex
+    <.form for={@changeset} action={~p"/items"} data-controller="bridge--form" data-submit-title="Save">
+      <%!-- form fields --%>
+      <button type="submit" class="hotwire-native:hidden">Save</button>
+    </.form>
+    ```
+
+    On native, the `bridge--form` controller sends the submit title to the native
+    side which renders a native navigation bar button. When tapped, the callback
+    calls `requestSubmit()` on the form element. The web submit button is hidden
+    on native via `hotwire-native:hidden` (replaced by the native nav bar button).
+
+    On web, the bridge controller is inert and the HTML button works normally.
+
+    The native side needs a `FormComponent` that receives `{ title }` and renders
+    a nav bar button. On tap, it calls `reply(to:)` to trigger form submission.
 
     ### Conditional rendering in controllers
     ```elixir

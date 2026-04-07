@@ -111,7 +111,10 @@ defmodule Mix.Tasks.Project.Setup do
       {:optional, :mix_test_watch},
 
       # Sort dependencies
-      Mix.Tasks.Project.Gen.SortDeps
+      Mix.Tasks.Project.Gen.SortDeps,
+
+      # Fix aliases
+      Mix.Tasks.Project.Gen.ForceDrop
     ]
   end
 end
